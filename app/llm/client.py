@@ -1,0 +1,137 @@
+import logging
+from collections.abc import Sequence
+from time import perf_counter
+from typing import Protocol
+
+import httpx
+
+from app.config.settings import Settings, get_settings
+from app.llm.errors import LLMError
+from app.llm.prompts import PROMPT_VERSION, SYSTEM_PROMPT
+from app.schemas.session import Message
+
+logger = logging.getLogger(__name__)
+
+
+class ChatModel(Protocol):
+    async def generate_reply(self, messages: Sequence[Message]) -> str: ...
+
+
+class DeepSeekClient:
+    def __init__(
+        self,
+        settings: Settings,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
+        self.settings = settings
+        self.transport = transport
+
+    async def generate_reply(self, messages: Sequence[Message]) -> str:
+        if not self.settings.key_configured:
+            raise LLMError(
+                "model_not_configured",
+                "尚未配置 DeepSeek API Key，请在项目 .env 中填写 DEEPSEEK_API_KEY。",
+                status_code=503,
+            )
+
+        payload = {
+            "model": self.settings.deepseek_model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                *[message.model_dump() for message in messages],
+            ],
+            "stream": False,
+            "thinking": {"type": self.settings.llm_thinking},
+            "max_tokens": self.settings.llm_max_tokens,
+        }
+        started = perf_counter()
+        logger.info(
+            "DeepSeek request started | model=%s | context_messages=%d | prompt_version=%s",
+            self.settings.deepseek_model,
+            len(messages), PROMPT_VERSION,
+        )
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.settings.llm_timeout_seconds),
+                transport=self.transport,
+            ) as client:
+                response = await client.post(
+                    str(self.settings.deepseek_base_url).rstrip("/")
+                    + "/chat/completions",
+                    headers={
+                        "Authorization": "Bearer "
+                        + self.settings.deepseek_api_key.get_secret_value().strip(),
+                    },
+                    json=payload,
+                )
+        except httpx.TimeoutException:
+            logger.warning("DeepSeek request timed out")
+            raise LLMError(
+                "model_timeout", "模型回复超时，请稍后重试。", status_code=504
+            ) from None
+        except httpx.RequestError:
+            logger.warning("DeepSeek connection failed")
+            raise LLMError(
+                "model_connection_failed", "无法连接 DeepSeek，请检查网络后重试。"
+            ) from None
+
+        if not response.is_success:
+            # 不记录响应正文，避免上游回显用户内容或凭据。
+            logger.warning(
+                "DeepSeek request rejected | upstream_status=%d",
+                response.status_code,
+            )
+            if response.status_code in (401, 403):
+                raise LLMError(
+                    "model_authentication_failed",
+                    "DeepSeek 身份验证失败，请检查本地 API Key。",
+                )
+            if response.status_code == 402:
+                raise LLMError(
+                    "model_balance_insufficient",
+                    "DeepSeek 账户余额不足，请检查账户。",
+                )
+            if response.status_code in (429, 500, 502, 503, 504):
+                raise LLMError(
+                    "model_unavailable",
+                    "DeepSeek 服务暂时繁忙，请稍后重试。",
+                    status_code=503,
+                )
+            raise LLMError(
+                "model_request_rejected",
+                "DeepSeek 拒绝了本次请求，请检查模型名称和接口配置。",
+            )
+
+        try:
+            choice = response.json()["choices"][0]
+            finish_reason = choice["finish_reason"]
+            reply = choice["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError):
+            logger.warning("DeepSeek returned an invalid response")
+            raise LLMError(
+                "invalid_model_response", "模型返回格式异常，请稍后重试。"
+            ) from None
+
+        if finish_reason != "stop":
+            logger.warning("DeepSeek returned an incomplete response")
+            raise LLMError(
+                "incomplete_model_response",
+                "本次未获得完整回复，请稍后重试或调整生成长度配置。",
+            )
+        if not isinstance(reply, str) or not reply.strip():
+            logger.warning("DeepSeek returned empty content")
+            raise LLMError(
+                "invalid_model_response", "模型未返回可用内容，请稍后重试。"
+            )
+        reply = reply.strip()
+        logger.info(
+            "DeepSeek request completed | elapsed_ms=%.0f | response_chars=%d",
+            (perf_counter() - started) * 1000,
+            len(reply),
+        )
+        return reply
+
+
+def get_chat_model() -> ChatModel:
+    return DeepSeekClient(get_settings())

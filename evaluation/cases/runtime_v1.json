@@ -1,0 +1,510 @@
+{
+  "version": "engineering_v1",
+  "synthetic": true,
+  "id": "runtime_regression_v1",
+  "cases": [
+    {
+      "critical": true,
+      "id": "normal_two_turns",
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：你好",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1,
+            "phase": "COMPLETED",
+            "stop_reason": "completed"
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：继续",
+          "expect": {
+            "messages": 4,
+            "model_calls": 2
+          }
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "duplicate_request",
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：相同请求",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          },
+          "request": "repeat"
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：相同请求",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          },
+          "request": "repeat"
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：不同内容",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          },
+          "request": "repeat",
+          "expected_error": "request_id_conflict"
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "timeout_rollback",
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：保留这一轮",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：模拟超时",
+          "expect": {
+            "messages": 2,
+            "model_calls": 2,
+            "phase": "FAILED",
+            "stop_reason": "model_error"
+          },
+          "request": "slow",
+          "model": "timeout",
+          "expected_error": "model_timeout"
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：模拟超时",
+          "expect": {
+            "messages": 2,
+            "model_calls": 2
+          },
+          "request": "slow",
+          "expected_error": "model_timeout"
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：新请求恢复",
+          "expect": {
+            "messages": 4,
+            "model_calls": 3,
+            "phase": "COMPLETED"
+          }
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "invalid_output_rollback",
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：保留",
+          "expect": {
+            "messages": 2
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：无效回复",
+          "expect": {
+            "messages": 2,
+            "model_calls": 2,
+            "phase": "FAILED",
+            "stop_reason": "output_invalid"
+          },
+          "model": "invalid",
+          "expected_error": "output_validation_failed"
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "context_budget_preflight",
+      "budgets": {
+        "context_chars": 1
+      },
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：超出预算",
+          "expect": {
+            "messages": 0,
+            "model_calls": 0,
+            "phase": "FAILED",
+            "stop_reason": "context_limit"
+          },
+          "expected_error": "context_limit_exceeded"
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "step_budget_rollback",
+      "budgets": {
+        "steps": 1
+      },
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：步骤预算",
+          "expect": {
+            "messages": 0,
+            "model_calls": 0,
+            "phase": "FAILED",
+            "stop_reason": "step_limit"
+          },
+          "expected_error": "step_limit_exceeded"
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "request_budget",
+      "budgets": {
+        "requests": 1
+      },
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：首轮",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：新编号超限",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          },
+          "expected_error": "request_limit_exceeded"
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "draft_correction_withdrawal",
+      "steps": [
+        {
+          "action": "create_draft",
+          "title": "VERSION_A_SENTINEL",
+          "items": [
+            "虚构数据 A"
+          ],
+          "expect": {
+            "draft_revision": 1,
+            "draft_status": "PROPOSED"
+          }
+        },
+        {
+          "action": "confirm_draft",
+          "expect": {
+            "draft_revision": 2,
+            "draft_status": "CONFIRMED"
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：使用已确认数据",
+          "expect": {
+            "messages": 2,
+            "context_drafts": 1
+          },
+          "input_contains": [
+            "VERSION_A_SENTINEL"
+          ]
+        },
+        {
+          "action": "edit_draft",
+          "title": "VERSION_B_SENTINEL",
+          "items": [
+            "虚构数据 B"
+          ],
+          "expect": {
+            "draft_revision": 3,
+            "draft_status": "PROPOSED"
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：修改待确认",
+          "expect": {
+            "messages": 4,
+            "context_drafts": 0,
+            "excluded_replies": 1
+          },
+          "input_absent": [
+            "VERSION_A_SENTINEL",
+            "VERSION_B_SENTINEL"
+          ]
+        },
+        {
+          "action": "confirm_draft",
+          "expect": {
+            "draft_revision": 4,
+            "draft_status": "CONFIRMED"
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：使用修正数据",
+          "expect": {
+            "messages": 6,
+            "context_drafts": 1
+          },
+          "input_contains": [
+            "VERSION_B_SENTINEL"
+          ],
+          "input_absent": [
+            "VERSION_A_SENTINEL"
+          ]
+        },
+        {
+          "action": "reject_draft",
+          "expect": {
+            "draft_revision": 5,
+            "draft_status": "REJECTED"
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：撤回后继续",
+          "expect": {
+            "messages": 8,
+            "context_drafts": 0,
+            "excluded_replies": 2
+          },
+          "input_absent": [
+            "VERSION_A_SENTINEL",
+            "VERSION_B_SENTINEL"
+          ]
+        },
+        {
+          "action": "clear",
+          "expect": {
+            "messages": 0,
+            "drafts": 0,
+            "has_context": false,
+            "phase": "IDLE"
+          }
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "stale_draft_revision",
+      "steps": [
+        {
+          "action": "create_draft",
+          "draft": "old",
+          "title": "虚构草稿旧版",
+          "items": [
+            "示例"
+          ],
+          "expect": {}
+        },
+        {
+          "action": "edit_draft",
+          "draft": "old",
+          "save_as": "new",
+          "title": "虚构草稿新版",
+          "items": [
+            "修正"
+          ],
+          "expect": {
+            "draft_revision": 2
+          }
+        },
+        {
+          "action": "confirm_draft",
+          "draft": "old",
+          "expected_error": "stale_revision",
+          "expect": {
+            "draft_revision": 2,
+            "draft_status": "PROPOSED"
+          }
+        },
+        {
+          "action": "confirm_draft",
+          "draft": "new",
+          "expect": {
+            "draft_revision": 3,
+            "draft_status": "CONFIRMED"
+          }
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "clear_tombstone",
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：清空前",
+          "expect": {
+            "messages": 2
+          },
+          "request": "old"
+        },
+        {
+          "action": "clear",
+          "expect": {
+            "messages": 0,
+            "drafts": 0,
+            "has_context": false
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：清空前",
+          "expect": {
+            "messages": 0,
+            "model_calls": 1
+          },
+          "request": "old",
+          "expected_error": "request_cleared"
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：清空后新请求",
+          "expect": {
+            "messages": 2,
+            "model_calls": 2
+          }
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "ended_session",
+      "steps": [
+        {
+          "action": "send",
+          "content": "虚构测试：结束前",
+          "expect": {
+            "messages": 2
+          }
+        },
+        {
+          "action": "end",
+          "expect": {
+            "status": "ENDED"
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：结束后",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          },
+          "expected_error": "session_ended"
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "session_isolation",
+      "steps": [
+        {
+          "action": "send",
+          "content": "SESSION_A_PRIVATE_MARKER",
+          "expect": {
+            "messages": 2,
+            "model_calls": 1
+          },
+          "request": "shared"
+        },
+        {
+          "action": "new_session",
+          "session": "second",
+          "expect": {
+            "messages": 0,
+            "drafts": 0,
+            "has_context": false
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：另一会话",
+          "expect": {
+            "messages": 2,
+            "model_calls": 2
+          },
+          "session": "second",
+          "request": "shared",
+          "input_absent": [
+            "SESSION_A_PRIVATE_MARKER"
+          ]
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "wait_resume",
+      "steps": [
+        {
+          "action": "demo",
+          "expect": {
+            "phase": "WAITING_CONFIRMATION",
+            "messages": 0
+          }
+        },
+        {
+          "action": "confirm_demo",
+          "expect": {
+            "phase": "COMPLETED",
+            "stop_reason": "completed",
+            "model_calls": 0
+          }
+        }
+      ]
+    },
+    {
+      "critical": true,
+      "id": "wait_cancel",
+      "steps": [
+        {
+          "action": "demo",
+          "expect": {
+            "phase": "WAITING_CONFIRMATION"
+          }
+        },
+        {
+          "action": "cancel",
+          "expect": {
+            "phase": "CANCELLED",
+            "stop_reason": "user_cancelled",
+            "model_calls": 0
+          }
+        },
+        {
+          "action": "send",
+          "content": "虚构测试：取消后继续",
+          "expect": {
+            "messages": 2,
+            "phase": "COMPLETED",
+            "model_calls": 1
+          }
+        }
+      ]
+    }
+  ]
+}
