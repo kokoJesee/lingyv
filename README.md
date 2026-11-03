@@ -1,6 +1,6 @@
 # Personal Emotional Agent
 
-团队比赛的 Agent 运行框架，已支持 DeepSeek 多轮聊天、会话与运行状态、取消与去重、
+Agent 运行框架，已支持 DeepSeek 多轮聊天、会话与运行状态、取消与去重、
 通用草稿纠正、上下文来源、离线评测，以及可选本地保存恢复。
 
 业务状态目前保持 INITIAL。心理理解、澄清策略、Mind Canvas、K/R/N 和专业安全规则仍待团队确认与接入。
