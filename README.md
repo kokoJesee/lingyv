@@ -111,3 +111,4 @@ docs/ 是随代码共享的阅读快照；项目负责人的 Obsidian 原稿继�
 - [离线评测](docs/批量评测运行器.md)
 - [会话保存恢复](docs/会话保存与恢复.md)
 - [开发约定](AGENTS.md)
+- [心理模块接口草案与 JSON 示例](docs/psychology-interface.md)

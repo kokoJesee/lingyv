@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PsychologyResponse v0.1.0 (proposal, not runtime enabled)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "session_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "route": {
+          "enum": [
+            "routine_support",
+            "clarify_safety",
+            "safety_support",
+            "urgent_real_world_help"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+          }
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "reply": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suggested_next_step": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memory_update": {
+          "const": null
+        },
+        "follow_up_offer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "route",
+        "evidence_refs",
+        "uncertainties",
+        "reply",
+        "suggested_next_step",
+        "memory_update",
+        "follow_up_offer"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "session_id",
+    "request_id",
+    "session_revision",
+    "result"
+  ]
+}
