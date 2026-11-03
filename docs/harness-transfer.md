@@ -1,10 +1,4 @@
-> 共享阅读快照；个人阅读原稿保留在负责人笔记中。
-
-# Harness 笔记向 Agent Runtime 的迁移
-
-参考来源：本机 local.paths.json 的 harness_note 所指原始笔记。
-该笔记描述了作者对 Claude Code 2.1.207 的静态工程复原。本次阅读并借鉴其机制，
-没有独立复核 Claude 的源码或运行时，笔记中的版本、符号和阈值不作为本项目事实或参数依据。
+# Claude Code Harness 架构向 Our Agent 迁移
 
 ## 本轮已经落地
 
