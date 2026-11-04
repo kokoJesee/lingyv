@@ -100,8 +100,7 @@ harness_note 仅供本机开发者定位原始研究笔记，程序不执行其�
 
 ## 项目说明
 
-docs/ 是随代码共享的阅读快照；项目负责人的 Obsidian 原稿继续保留。
-更新文档时同步相关共享文件，不默认发布个人笔记或本地评测产物。
+docs/ 是随代码共享的阅读快照，更新文档时同步相关共享文件，不默认发布个人笔记或本地评测产物。
 
 - [运行契约](docs/runtime-contract.md)
 - [Harness 迁移原则](docs/harness-transfer.md)
