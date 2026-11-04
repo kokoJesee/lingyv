@@ -1,7 +1,7 @@
 # Personal Emotional Agent
 
 Agent 运行框架，已支持 DeepSeek 多轮聊天、会话与运行状态、取消与去重、
-通用草稿纠正、上下文来源、离线评测，以及可选本地保存恢复。
+通用草稿纠正、上下文来源、离线评测、可选本地保存恢复，以及浏览器语音输入。
 
 业务状态目前保持 INITIAL。心理理解、澄清策略、Mind Canvas、K/R/N 和专业安全规则仍待团队确认与接入。
 
@@ -52,6 +52,8 @@ Key 只保存在本地。配置不上传仓库，不把 Key 放进命令参数�
 ~~~
 
 API 文档：http://127.0.0.1:8000/docs。已有服务时不用重复启动。
+语音页面：http://localhost:8000/voice。支持模拟流程和腾讯云真实转写，文字校对后发送。
+录音、配置与接口见 [语音输入说明](docs/voice-input.md)。
 Windows 也可用 .\dev.ps1 -Mode demo / chat / api / test / eval / archive-demo / check / setup。
 若 PowerShell 限制执行脚本，直接使用上面的 Python 命令。
 

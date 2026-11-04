@@ -28,6 +28,8 @@ from app.schemas.message import SendMessageRequest, SendMessageResponse
 from app.schemas.session import Session, SessionSummary
 from app.schemas.workflow import CancelWorkflowRequest, ConfirmWorkflowRequest
 from app.services.session_service import session_service
+from app.audio.routes import router as audio_router
+from app.audio.service import AudioService
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +46,20 @@ async def lifespan(app: FastAPI):
         "Agent starting | model=%s | key_configured=%s | prompt_version=%s",
         settings.deepseek_model, settings.key_configured, PROMPT_VERSION,
     )
-    yield
-    logger.info("Agent stopped")
+    app.state.audio_service = AudioService(settings)
+    try:
+        yield
+    finally:
+        await app.state.audio_service.close()
+        logger.info("Agent stopped")
 
 
 app = FastAPI(
     title="Personal Emotional Agent",
     description="Personal Emotional Agent runtime: sessions, workflows and model calls.",
-    version="0.4.0", lifespan=lifespan,
+    version="0.5.0", lifespan=lifespan,
 )
+app.include_router(audio_router)
 
 
 @app.exception_handler(RuntimeFailure)
