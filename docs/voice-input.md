@@ -79,7 +79,7 @@ Swagger 的 /docs 页面可以上传符合要求的 WAV 文件进行调试。浏
 | 上传总量和等待 | 音频上限加 16 KiB 表单开销、15 秒 | 流式检查总量，过大返回 413，过慢返回 408 |
 | 同时上传/等待的 HTTP 请求 | 4 | 达上限返回 503 |
 | ASR_TIMEOUT_SECONDS | 20 | 单次识别超时返回 504 |
-| ASR_MAX_CONCURRENT | 2 | 识别任务并发上限，繁忙返回 503 |
+| ASR_MAX_CONCURRENT | 2 | 识别执行并发上限，超出后进入共享等待队列 |
 | ASR_MAX_REQUESTS | 100 | 短期去重与取消记录上限，满时返回 503 |
 | ASR_CACHE_SECONDS | 600 | 完成后在内存保留结果或错误，计时到期主动清理 |
 
@@ -88,6 +88,8 @@ Swagger 的 /docs 页面可以上传符合要求的 WAV 文件进行调试。浏
 同编号、同音频和同模式在保留期内共享同一任务或已完成结果。改用同编号提交不同内容返回 409。失败也会重放，主动重新尝试使用新的编号。记录过期或进程重启后，相同编号可以重新执行，因此调用方应只在一次短期重试中复用编号。
 
 当前转写去重记录属于本机单进程。取消通过编号定位任务，与现有开发接口一样适用于本机单用户联调。多人部署时需补充身份与记录归属检查。
+
+Runtime 0.6.0 将实际 ASR 调用接入 [统一外部调用调度](call-scheduler.md)。转写排队计入 ASR_TIMEOUT_SECONDS，总执行名额与聊天共享，等待上限由 EXTERNAL_QUEUE_TIMEOUT_SECONDS 控制。排队失败也按转写请求编号缓存，主动重试使用新编号。
 
 错误响应使用 detail.code 和 detail.message。常见代码包括 audio_not_configured、audio_format_invalid、audio_too_large、audio_too_long、audio_timeout、audio_no_speech、audio_cancelled、audio_request_conflict、audio_busy。日志只包含编号、模式、大小、耗时和错误类型。
 

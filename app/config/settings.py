@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     runtime_max_context_chars: int = Field(default=48000, ge=1)
     runtime_max_requests_per_session: int = Field(default=500, ge=1, le=10000)
 
+    external_max_concurrent: int = Field(default=4, ge=1, le=100)
+    external_max_queue: int = Field(default=16, ge=0, le=1000)
+    external_queue_timeout_seconds: float = Field(default=5, gt=0, le=180)
+    llm_max_concurrent: int = Field(default=2, ge=1, le=100)
+
     asr_provider: Literal["disabled", "tencent"] = "disabled"
     tencent_secret_id: SecretStr = SecretStr("")
     tencent_secret_key: SecretStr = SecretStr("")

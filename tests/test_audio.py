@@ -188,7 +188,7 @@ def test_concurrent_replay_capacity_cancel_and_late_result():
                 return "正常文字"
 
         recognizer = Slow()
-        service = AudioService(configured(asr_max_concurrent=1), recognizer)
+        service = AudioService(configured(asr_max_concurrent=1, external_max_queue=0), recognizer)
         request_id = uuid4()
         first = asyncio.create_task(service.transcribe(wav_bytes(), request_id, "configured"))
         await entered.wait()

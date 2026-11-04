@@ -5,6 +5,7 @@ from time import perf_counter
 from uuid import UUID
 
 from app.agent.errors import RuntimeFailure
+from app.calls.scheduler import call_scope
 from app.agent.context import build_context
 from app.agent.events import emit
 from app.agent.workflow import WorkflowEngine
@@ -76,7 +77,11 @@ class AgentOrchestrator:
                 context = bundle.messages
                 self.engine.advance(workflow, "model_call")
                 emit(record, "step_started", request.request_id)
-                record.active_task = asyncio.create_task(model.generate_reply(context))
+                with call_scope(
+                    request.request_id, workflow.run_id,
+                    deadline=asyncio.get_running_loop().time() + self.settings.llm_timeout_seconds,
+                ):
+                    record.active_task = asyncio.create_task(model.generate_reply(context))
                 try:
                     reply = await asyncio.wait_for(
                         record.active_task, timeout=self.settings.llm_timeout_seconds

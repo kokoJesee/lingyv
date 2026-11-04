@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from app.audio.provider import AudioError, Recognizer, TencentRecognizer
+from app.calls.scheduler import CallLimitError, CallScheduler, call_scope
 from app.config.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -65,9 +66,11 @@ class Failure:
 class AudioService:
     """Process-local bounded transcription cache, independent of chat history."""
 
-    def __init__(self, settings: Settings, recognizer: Recognizer | None = None):
+    def __init__(self, settings: Settings, recognizer: Recognizer | None = None, scheduler: CallScheduler | None = None):
         self.settings = settings
         self.recognizer = recognizer or TencentRecognizer(settings)
+        self.scheduler = scheduler or CallScheduler(settings)
+        self.owns_scheduler = scheduler is None
         self.entries: dict[UUID, Entry] = {}
         self.uploads = 0
 
@@ -102,7 +105,7 @@ class AudioService:
         else:
             self.require_space()
             active = sum(e.task is not None and not e.task.done() for e in self.entries.values())
-            if active >= self.settings.asr_max_concurrent:
+            if active >= self.settings.asr_max_concurrent + self.settings.external_max_queue:
                 raise AudioError("audio_busy", "语音识别正在处理其他请求，请稍后重试。", 503)
             entry = Entry(digest=digest)
             entry.task = asyncio.create_task(self._recognize(audio, request_id, mode, duration))
@@ -135,7 +138,9 @@ class AudioService:
             else:
                 if not self.settings.asr_configured:
                     raise AudioError("audio_not_configured", "请在本地配置腾讯云语音识别凭据并重启服务。", 503)
-                text = await asyncio.wait_for(self.recognizer.transcribe(audio), self.settings.asr_timeout_seconds)
+                with call_scope(request_id, input_audio_seconds=duration):
+                    async with self.scheduler.slot("tencent_asr", self.settings.asr_timeout_seconds):
+                        text = await self.recognizer.transcribe(audio)
             if not isinstance(text, str) or not text.strip() or len(text) > 8000:
                 raise AudioError("audio_invalid_response", "语音识别结果为空或格式异常。")
             result = Transcription(
@@ -149,6 +154,10 @@ class AudioService:
         except TimeoutError:
             logger.info("Audio failed | request_id=%s | code=audio_timeout", request_id)
             return Failure("audio_timeout", "语音识别超时，请使用新请求编号重试。", 504)
+        except CallLimitError as error:
+            if error.code == "external_call_timeout":
+                return Failure("audio_timeout", "语音识别超时，请使用新请求编号重试。", 504)
+            return Failure(error.code, error.message, error.status_code)
         except AudioError as error:
             logger.info("Audio failed | request_id=%s | code=%s", request_id, error.code)
             # Cache plain error data, not tracebacks retaining audio or request frames.
@@ -184,3 +193,5 @@ class AudioService:
             if entry.expiry is not None:
                 entry.expiry.cancel()
         self.entries.clear()
+        if self.owns_scheduler:
+            await self.scheduler.close()

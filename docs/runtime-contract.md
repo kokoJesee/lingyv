@@ -4,6 +4,8 @@
 
 Runtime 0.5.0 增加浏览器语音输入。上传、转写、取消、缓存与预算约定见 [语音输入说明](voice-input.md)。转写结果通过用户编辑和显式发送进入原有会话流程。
 
+Runtime 0.6.0 将 DeepSeek 与 ASR 接入 [统一外部调用调度](call-scheduler.md)。共享总并发、供应商并发、有限等待队列和包括排队的调用总时限，GET /runtime/calls 提供当前进程的脱敏统计。
+
 ## 两种状态
 
 Session.state 是业务阶段，现阶段保持 INITIAL。
