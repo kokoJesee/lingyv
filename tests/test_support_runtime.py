@@ -226,7 +226,7 @@ def test_archive_v1_rejects_support_and_mode_cannot_downgrade(tmp_path):
         await agent.handle_message(sid,req,Model())
         archives=ArchiveService(sessions,SQLiteArchiveStore(tmp_path/'archive.db'))
         with pytest.raises(RuntimeFailure) as error: await archives.save(sid,SaveArchiveRequest(expected_revision=sessions.get(sid).revision))
-        assert error.value.code=='archive_business_version_required'
+        assert error.value.code=='archive_business_consent_required'
         with pytest.raises(RuntimeFailure): await AgentOrchestrator(sessions).handle_message(sid,SendMessageRequest(content='fallback'),Model())
         with pytest.raises(RuntimeFailure): await agent.start_demo(sid)
     asyncio.run(run())
