@@ -41,6 +41,8 @@ class ArchiveService:
 
     @staticmethod
     def _saveable(record):
+        if record.support_mode:
+            raise RuntimeFailure("archive_business_version_required", "当前心理流程需支持业务依赖的新版存档；旧版未保存。")
         if (record.lifecycle_pending or record.active_task is not None or
                 record.session.workflow.phase == WorkflowPhase.RUNNING):
             raise RuntimeFailure("archive_session_busy", "当前会话正在运行或清空，请完成后再保存。")

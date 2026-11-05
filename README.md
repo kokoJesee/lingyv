@@ -112,3 +112,10 @@ docs/ 是随代码共享的阅读快照；项目负责人的 Obsidian 原稿继�
 - [会话保存恢复](docs/会话保存与恢复.md)
 - [开发约定](AGENTS.md)
 - [心理模块接口草案与 JSON 示例](docs/psychology-interface.md)
+
+
+## 个人支持流程（模块 7）
+
+运行 `.venv/bin/python -B -m app.support_cli` 可离线演示模拟设备 → 分析 → 用户纠正 → 后续理解 → 撤回后旧结果失效。无真实模型调用。
+
+服务端设置 `PSYCHOLOGY_ENABLED=true` 可让现有消息 API 使用结构化心理流程；默认保留普通聊天。心理策略仍为 unreviewed。接口、来源失效和暂不支持 v1 业务存档的边界见 [主流程集成](docs/agent-support-integration.md)。
