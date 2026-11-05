@@ -17,6 +17,8 @@ import { CaseForgeView } from "./support-views";
 import { CinematicCanvas, CinematicArchive } from "./cinematic-reflections";
 import { CinematicSignals } from "./cinematic-signals";
 import { WorldMedia } from "./world-media";
+import { SupportJourney } from "./support-journey";
+import { useSupportJourney } from "./use-support-journey";
 import "./world-pages.css";
 
 const nav = [
@@ -28,7 +30,7 @@ const nav = [
 ] as const;
 type MainView = (typeof nav)[number]["id"];
 type View = MainView | "caseforge";
-type Mode = "demo" | "fastapi";
+type Mode = "demo" | "fastapi" | "support";
 const choices = ["keep", "release", "next"] as const;
 const choiceIcons = { keep: Star, release: Feather, next: Compass };
 const scene = {
@@ -55,6 +57,7 @@ function SceneWave({ state }: { state: keyof typeof scene }) {
 export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
   const [view, setView] = useState<View>("universe");
   const [mode, setMode] = useState<Mode>("demo");
+  const journey = useSupportJourney(mode === "support");
   const [input, setInput] = useState("");
   const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState<Reflection | null>(null);
@@ -148,7 +151,7 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
   }
 
   function changeMode(next: Mode) {
-    if (next === mode) return;
+    if (next === mode || pending || journey.pending || journey.action) return;
     setMode(next);
     setConsent(false);
     setError("");
@@ -156,7 +159,7 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || !input.trim() || (mode === "fastapi" && !consent)) return;
+    if (mode === "support" || pending || !input.trim() || (mode === "fastapi" && !consent)) return;
     const controller = new AbortController();
     request.current = controller;
     setError("");
@@ -276,13 +279,19 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
       <main id="main-content" ref={main} tabIndex={-1} className="content">
         {privacy && <section id="privacy-info" className="privacy-drawer" aria-label="演示与隐私说明">
           <LockKeyhole size={20} aria-hidden="true" />
-          <div><strong>这是演示空间</strong><p>请只填写虚构内容。默认模式在本页内存运行；刷新后会清除草稿和经历卡。联网模式须逐次同意发送文本，不发送画布或经历卡。</p></div>
-          <button type="button" className="btn btn-secondary" onClick={clearSession}>清空本页记录</button>
+          <div><strong>这是演示空间</strong><p>{mode === "support" ? "后端支持流程会在本机服务内存中保留旅程。刷新网页不会删除后端内容；请使用旅程中的清空按钮。保存到磁盘需要单独同意。请仅使用虚构资料。" : "请只填写虚构内容。默认模式在本页内存运行；刷新后会清除草稿和经历卡。联网通用聊天须逐次同意发送文本，不发送画布或经历卡。"}</p></div>
+          {mode !== "support" && <button type="button" className="btn btn-secondary" onClick={clearSession}>清空本页演示记录</button>}
           <button type="button" className="icon-button" aria-label="关闭演示说明" onClick={() => setPrivacy(false)}><X size={18} /></button>
         </section>}
 
-        <div key={view} className="view-enter">
-          {view === "agent" && <section className="agent-view" aria-labelledby="agent-title">
+        {liveEnabled && view !== "caseforge" && <div className="journey-mode-bar" role="group" aria-label="选择体验模式">
+          <button type="button" aria-pressed={mode === "demo"} disabled={pending || journey.pending || !!journey.action} onClick={() => changeMode("demo")}>本地演示</button>
+          <button type="button" aria-pressed={mode === "fastapi"} disabled={pending || journey.pending || !!journey.action} onClick={() => changeMode("fastapi")}>联网通用聊天</button>
+          <button type="button" aria-pressed={mode === "support"} disabled={pending || journey.pending || !!journey.action} onClick={() => changeMode("support")}>后端支持流程</button>
+        </div>}
+        <div key={mode === "support" ? "support" : view} className="view-enter">
+          {mode === "support" && view !== "caseforge" && <SupportJourney view={view} journey={journey} onNavigate={go} />}
+          {mode !== "support" && view === "agent" && <section className="agent-view" aria-labelledby="agent-title">
             <div className="agent-intro-screen">
               <WorldMedia src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_115001_bcdaa3b4-03de-47e7-ad63-ae3e392c32d4.mp4" poster="/images/agent-bg.jpg" fadeLoop shift />
               <div className="agent-intro-shade" aria-hidden="true" />
@@ -291,10 +300,7 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
                 <h1 id="agent-title" lang="en">A space to be heard.</h1>
                 <p className="agent-intro-subtitle">和拾光说说话。<span>不必先整理好自己。</span></p>
                 <form className="agent-composer-form" onSubmit={generate}>
-                  {liveEnabled && <div className="mode-switch" aria-label="回复来源">
-                    <button type="button" aria-pressed={mode === "demo"} disabled={pending} onClick={() => changeMode("demo")}>本地演示</button>
-                    <button type="button" aria-pressed={mode === "fastapi"} disabled={pending} onClick={() => changeMode("fastapi")}>联网通用聊天</button>
-                  </div>}
+
                   <label htmlFor="story-input" className="sr-only">说说发生了什么</label>
                   <div className="agent-composer">
                     <textarea ref={inputField} id="story-input" rows={1} placeholder="此刻，有什么想说的吗？" maxLength={maxInputLength} value={input} disabled={pending} onChange={(e) => setInput(e.target.value)} />
@@ -367,9 +373,9 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
             </div>}
           </section>}
 
-          {view === "canvas" && <CinematicCanvas draft={draft} onOpenAgent={() => go("agent")} />}
-          {view === "signals" && <CinematicSignals onOpenAgent={() => go("agent")} />}
-          {view === "archive" && <CinematicArchive cards={cards} onOpenAgent={() => go("agent")} />}
+          {mode !== "support" && view === "canvas" && <CinematicCanvas draft={draft} onOpenAgent={() => go("agent")} />}
+          {mode !== "support" && view === "signals" && <CinematicSignals onOpenAgent={() => go("agent")} />}
+          {mode !== "support" && view === "archive" && <CinematicArchive cards={cards} onOpenAgent={() => go("agent")} />}
           {view === "caseforge" && <CaseForgeView />}
         </div>
       </main>

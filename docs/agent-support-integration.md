@@ -103,8 +103,7 @@ PSYCHOLOGY_ENABLED=true .venv/bin/python -m uvicorn app.main:app --host 127.0.0.
 
 ## 存档边界
 
-当前旧 snapshot v1 只理解草稿来源，无法保存设备/理解依赖和支持路线。模块 8 前，保存任何已经进入心理流程的会话都会明确返回 archive_business_version_required；不会静默生成一个可能恢复旧权限或丢失安全上下文的快照。
-普通聊天存档原流程仍可用。清空后无心理内容的会话可以重新按普通流程保存。完整业务存档、恢复时重新授权和恢复后凭据更新由模块 8 实现。
+模块 8 已新增业务 snapshot v2。保存含设备、自述、理解或心理流程的会话，需要独立的 `save_business_data=true`；缺少选择返回 `archive_business_consent_required`。恢复设备记录不恢复用途授权，旧请求成为墓碑，确认凭据换发，支持路线与来源依赖保留。普通 v1 存档继续兼容。详见 [业务存档](business-archives.md)。
 
 ## 验证
 
