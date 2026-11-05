@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     llm_thinking: Literal["enabled", "disabled"] = "disabled"
 
     psychology_enabled: bool = False
+    psychology_demo_mode: bool = False
+    psychology_demo_route: Literal['routine_support', 'clarify_safety', 'safety_support', 'urgent_real_world_help'] = 'routine_support'
     analysis_timezone: str = "Asia/Shanghai"
 
     runtime_max_steps: int = Field(default=8, ge=1, le=100)

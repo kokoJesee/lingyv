@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Personal Emotional Agent",
     description="Personal Emotional Agent runtime: sessions, workflows and model calls.",
-    version="0.6.0", lifespan=lifespan,
+    version="0.7.0", lifespan=lifespan,
 )
 app.include_router(audio_router)
 
@@ -105,6 +105,7 @@ async def health_check():
         "runtime": {
             "storage": "memory", "prompt_version": PSYCHOLOGY_PROMPT_VERSION if settings.psychology_enabled else PROMPT_VERSION,
             "psychology_enabled": settings.psychology_enabled,
+            "psychology_demo_mode": settings.psychology_enabled and settings.psychology_demo_mode,
             "psychology_review_status": "unreviewed",
             "max_steps": settings.runtime_max_steps,
             "max_context_chars": settings.runtime_max_context_chars,

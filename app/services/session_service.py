@@ -32,6 +32,7 @@ class SessionRecord:
     drafts: dict[UUID, Draft] = field(default_factory=dict)
     events: deque[RuntimeEvent] = field(default_factory=lambda: deque(maxlen=200))
     active_task: asyncio.Task | None = None
+    active_request_id: UUID | None = None
     cancel_reason: StopReason | None = None
     lifecycle_pending: int = 0
     turn_sources: dict[int, list[DraftReference]] = field(default_factory=dict)

@@ -91,6 +91,7 @@ class AgentOrchestrator:
             record.cancel_reason = None
             operation = OperationRecord(fingerprint=fingerprint)
             record.operations[request.request_id] = operation
+            record.active_request_id = request.request_id
             started = perf_counter()
             emit(record, "run_started", request.request_id)
             try:
@@ -189,6 +190,7 @@ class AgentOrchestrator:
                 raise safe from None
             finally:
                 record.active_task = None
+                record.active_request_id = None
 
     def _failure(self, record, operation, request_id, error, started):
         workflow = record.session.workflow

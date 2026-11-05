@@ -4,14 +4,17 @@ The host application owns error handling and authentication. Session identifiers
 select state; they are not a production authentication mechanism.
 """
 from collections.abc import Callable
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import AwareDatetime, field_validator
 
 from app.psychology.policy import SupportNotice, support_entry
 from app.schemas.state_analysis import StateAnalysis
+from app.schemas.support_views import (
+    SimulateWearablesRequest, SupportStateView, TrendQuery, WearableTrends,
+)
 from app.schemas.understanding import Understanding
 from app.schemas.understanding_service import (
     AddUserReport, ConfirmUnderstanding, DecideUnderstanding, EditUnderstanding,
@@ -22,6 +25,7 @@ from app.schemas.wearable_service import (
     DeleteWearableRecord, ImportWearables, SetWearableConsent,
 )
 from app.services.session_service import SessionService
+from app.services.support_views import SupportViewService, wearable_catalog
 from app.services.state_analysis import AnalysisConfig, StateAnalysisService
 from app.services.understanding_service import UnderstandingService
 from app.services.understanding_state import UserReport
@@ -44,6 +48,22 @@ class AnalyzeStateRequest(ContractModel):
 def make_support_router(get_sessions: Callable[[], SessionService]) -> APIRouter:
     """Resolve the current store on every request, including after test replacement."""
     router = APIRouter(tags=['personal-support'])
+
+    @router.get('/wearables/catalog')
+    async def get_wearable_catalog():
+        return wearable_catalog()
+
+    @router.get('/sessions/{session_id}/support-state', response_model=SupportStateView)
+    async def get_support_state(session_id: UUID):
+        return SupportViewService(get_sessions()).state(session_id)
+
+    @router.get('/sessions/{session_id}/wearables/trends', response_model=WearableTrends)
+    async def get_wearable_trends(session_id: UUID, query: Annotated[TrendQuery, Query()]):
+        return SupportViewService(get_sessions()).trends(session_id, query)
+
+    @router.post('/sessions/{session_id}/wearables/simulate')
+    async def simulate_wearables(session_id: UUID, request: SimulateWearablesRequest):
+        return await SupportViewService(get_sessions()).simulate(session_id, request)
 
     @router.get('/support', response_model=SupportNotice)
     async def get_support():
@@ -85,6 +105,10 @@ def make_support_router(get_sessions: Callable[[], SessionService]) -> APIRouter
     @router.get('/sessions/{session_id}/understandings', response_model=list[Understanding])
     async def current_understandings(session_id: UUID, scope: Scope = 'local_analysis'):
         return UnderstandingService(get_sessions()).current(session_id, scope=scope)
+
+    @router.get('/sessions/{session_id}/understandings/control', response_model=list[UnderstandingView])
+    async def understanding_controls(session_id: UUID):
+        return SupportViewService(get_sessions()).controls(session_id)
 
     @router.get('/sessions/{session_id}/understandings/{understanding_id}', response_model=UnderstandingView)
     async def get_understanding(session_id: UUID, understanding_id: str):

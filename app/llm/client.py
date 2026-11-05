@@ -159,5 +159,9 @@ class DeepSeekClient:
 
 
 def get_chat_model(request: Request = None) -> ChatModel:
+    settings = get_settings()
+    if settings.psychology_enabled and settings.psychology_demo_mode:
+        from app.psychology.demo import ScriptedSupportModel
+        return ScriptedSupportModel(settings.psychology_demo_route)
     scheduler = request.app.state.call_scheduler if request is not None else None
-    return DeepSeekClient(get_settings(), scheduler=scheduler)
+    return DeepSeekClient(settings, scheduler=scheduler)
