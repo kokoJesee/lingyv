@@ -17,14 +17,16 @@ export async function readActiveSignals(
   state: SupportState | null,
   at: string,
   days: 7 | 14 | 30,
+  timezone = state?.wearables.available_timezones?.[0] ?? "Asia/Shanghai",
 ) {
   if (!state || state.session.status !== "ACTIVE") return null;
   const id = state.session.session_id;
   const [trends, analysis] = await Promise.all([
-    client.trends(id, { as_of: at, days }),
-    client.analysis(id, { as_of: at, scope: "local_analysis", timezone: "Asia/Shanghai" }),
+    client.trends(id, { as_of: at, days, timezone }),
+    client.analysis(id, { as_of: at, scope: "local_analysis", timezone }),
   ]);
   if (trends.session_id !== id || analysis.session_id !== id
+    || trends.timezone !== timezone || analysis.timezone !== timezone
     || trends.revision !== state.wearables.revision || analysis.evidence_revision !== state.wearables.revision) return null;
   return { trends, analysis };
 }
@@ -81,6 +83,9 @@ export function useSupportJourney(active: boolean) {
   const [failedAttempt, setFailedAttempt] = useState(false);
   const [asOf, setAsOf] = useState(() => new Date().toISOString());
   const [range, updateRange] = useState<7 | 14 | 30>(14);
+  const [selectedTimezone, updateTimezone] = useState<string | null>(null);
+  const availableTimezones = state?.wearables.available_timezones ?? [];
+  const timezone = selectedTimezone && availableTimezones.includes(selectedTimezone) ? selectedTimezone : availableTimezones[0] ?? "Asia/Shanghai";
   const businessEpoch = useRef(0);
   const stateReadTicket = useRef(0);
   const signalReadTicket = useRef(0);
@@ -115,7 +120,7 @@ export function useSupportJourney(active: boolean) {
     const ticket = ++signalReadTicket.current;
     const expectedRevision = stateRef.current?.wearables.revision;
     try {
-      const result = await readActiveSignals(api, stateRef.current, at, days);
+      const result = await readActiveSignals(api, stateRef.current, at, days, timezone);
       if (result && mounted.current && sid.current === id && ticket === signalReadTicket.current
         && stateRef.current?.session.status === "ACTIVE" && expectedRevision === stateRef.current.wearables.revision) {
         setTrends(result.trends); setAnalysis(result.analysis);
@@ -126,7 +131,7 @@ export function useSupportJourney(active: boolean) {
       if (mounted.current && sid.current === id && ticket === signalReadTicket.current
         && stateRef.current?.session.status === "ACTIVE") throw issue;
     }
-  }, [asOf, range]);
+  }, [asOf, range, timezone]);
 
   const actionRun = useCallback(async <T,>(label: string, task: () => Promise<T>, invalidates = true): Promise<T | undefined> => {
     if (acting.current) return;
@@ -199,7 +204,7 @@ export function useSupportJourney(active: boolean) {
       }
       const session = await api.createSession();
       if (!mounted.current) return;
-      sid.current = session.session_id; setResponse(null); setTrends(null); setAnalysis(null); setLastAttempt(null); setFailedAttempt(false);
+      sid.current = session.session_id; updateTimezone(null); setResponse(null); setTrends(null); setAnalysis(null); setLastAttempt(null); setFailedAttempt(false);
       const next = await refresh(session.session_id);
       if (!next) return;
       setNotice(previousMissing
@@ -278,8 +283,14 @@ export function useSupportJourney(active: boolean) {
   const simulate = (scenario: string) => actionRun("导入模拟记录", async () => {
     const id = sid.current, latest = stateRef.current; if (!id || !latest) return;
     const at = new Date().toISOString();
-    await api.simulate(id, { operation_id: uuid(), expected_revision: latest.wearables.revision, as_of: at, scenario_id: scenario, seed: 42, days: 21 });
-    setAsOf(at); await refresh(id); setNotice("已导入 21 天虚构设备记录。导入不会自动允许本地分析或模型使用，请在下方选择用途。");
+    const replacing = latest.wearables.record_count > 0;
+    await api.simulate(id, { operation_id: uuid(), expected_revision: latest.wearables.revision, as_of: at, scenario_id: scenario, seed: 42, days: 21, replace_existing: replacing });
+    setResponse(null); setTrends(null); setAnalysis(null); updateTimezone(null);
+    setAsOf(at); await refresh(id).catch(fail);
+    setNotice(replacing
+      ? "已切换模拟样本，对话仍保留。保留原有本机展示选择；用于支持对话的设备授权已撤回，请按需重新选择。"
+      : "已导入 21 天虚构设备记录。请允许本机展示以查看读数；用于支持对话需另行选择。");
+    return true;
   });
 
   const consent = (provider: WearableProvider, metrics: string[], scopes: Scope[]) => actionRun("更新设备用途", async () => {
@@ -344,7 +355,7 @@ export function useSupportJourney(active: boolean) {
       if (!(issue instanceof SupportError) || issue.code !== "session_already_loaded") throw issue;
       restored = false;
     }
-    sid.current = archive.archive_id; setResponse(null); setTrends(null); setAnalysis(null); setLastAttempt(null); setFailedAttempt(false);
+    sid.current = archive.archive_id; updateTimezone(null); setResponse(null); setTrends(null); setAnalysis(null); setLastAttempt(null); setFailedAttempt(false);
     await refresh(archive.archive_id);
     setNotice(restored ? "已从本机存档恢复。设备用途授权已清零，请重新选择；相关理解需重新核对。" : "已打开后端内存中的这段旅程，没有用磁盘存档覆盖当前内容。");
   });
@@ -359,7 +370,8 @@ export function useSupportJourney(active: boolean) {
     setHealth(h); setCatalog(c); setArchives(a); await refresh(); await refreshSignals();
   }, false);
 
-  return { health, state, catalog, support, response, trends, analysis, archives, pending, action, error, notice, lastAttempt, failedAttempt, asOf, range,
+  return { health, state, catalog, support, response, trends, analysis, archives, pending, action, error, notice, lastAttempt, failedAttempt, asOf, range, timezone,
+    setTimezone: (value: string) => { if (!stateRef.current?.wearables.available_timezones?.includes(value)) return; ++signalReadTicket.current; setTrends(null); setAnalysis(null); updateTimezone(value); },
     setRange: (days: 7 | 14 | 30) => { ++signalReadTicket.current; setTrends(null); updateRange(days); }, start, ensureSession, refreshAll, send, stop, clear, end, simulate, consent, propose, edit, decide, commitUnderstanding, save, load, removeArchive,
     retry: (same: boolean) => lastAttempt ? send(same ? lastAttempt : { ...lastAttempt, request_id: uuid() }) : Promise.resolve<SupportResponse | undefined>(undefined),
   };

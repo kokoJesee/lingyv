@@ -41,12 +41,14 @@ Windows PowerShell 可先设置 `$env:PSYCHOLOGY_ENABLED="true"`、`$env:PSYCHOL
 | 接口 | 结果 |
 |---|---|
 | GET /wearables/catalog | 指标 ID/单位/方法与公开模拟样本编号，不含隐藏情境答案 |
-| GET /sessions/{id}/support-state | session、active_request_id、支持路线、有效 proposed/confirmed 控制视图、设备版本与用途概要 |
+| GET /sessions/{id}/support-state | session、active_request_id、支持路线、有效理解、设备版本与用途；available_timezones 仅列本机分析已授权的记录时区，最新优先 |
 | GET /sessions/{id}/understandings/control | 可发现的有效待确认/已确认理解 |
-| POST /sessions/{id}/wearables/simulate | 按 scenario_id/seed/as_of/days 生成并显式导入，不自动授权 |
-| GET /sessions/{id}/wearables/trends | local_analysis 用途过滤，7/14/30 日序列，缺失保持 null，冲突来源不拼接 |
+| POST /sessions/{id}/wearables/simulate | 按 scenario_id/seed/as_of/days 生成；replace_existing=true 时原子替换 mock 模拟记录，保留对话及其他设备来源 |
+| GET /sessions/{id}/wearables/trends | local_analysis 用途过滤，按 timezone 选择记录来源，7/14/30 日序列，缺失保持 null，其他冲突来源不拼接 |
 
 用途授权沿用 /wearables/consent，分别选择 local_analysis 和 model_context；导入不自动授权。/analysis 提供基线/近期中位数和不足原因。睡眠分钟换算小时，HRV 明确 RMSSD；入睡/醒来按趋势时区显示钟点并连续比较跨午夜变化。缺测保留空值、来源冲突不拼接。读取状态不等待模型锁，便于轮询和取消。
+
+样本选择器导入后仍可用，选择后点击「切换到所选样本」。替换保留原本的本机分析授权和指标范围，撤回用于对话的授权，使旧设备依赖失效；失败保留旧数据。未授权时可明确点击「允许本机展示模拟读数」。S04 默认查看最新的东京记录，可切换上海；默认选中当前时区最新有值的日期，其他时区日期留空。跨时区基线仍遵守原分析器的来源隔离，不拼出整段个人基线。
 
 ## 人工验收流程
 

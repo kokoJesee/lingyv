@@ -116,8 +116,8 @@ test("a committed clear remains successful when its follow-up read fails, while 
 test("ended journeys stop signal requests and active reads require matching session and data revisions", async () => {
   let calls = 0;
   const state = { session: { session_id: sid, status: "ENDED" }, wearables: { revision: 3 } } as SupportState;
-  const trends = { session_id: sid, revision: 3 } as WearableTrends;
-  const analysis = { session_id: sid, evidence_revision: 3 } as StateAnalysis;
+  const trends = { session_id: sid, revision: 3, timezone: "Asia/Shanghai" } as WearableTrends;
+  const analysis = { session_id: sid, evidence_revision: 3, timezone: "Asia/Shanghai" } as StateAnalysis;
   const client = {
     async trends() { calls++; return trends; },
     async analysis() { calls++; return analysis; },
@@ -128,4 +128,46 @@ test("ended journeys stop signal requests and active reads require matching sess
   assert.deepEqual(await readActiveSignals(client, state, "2026-11-05T00:00:00Z", 14), { trends, analysis });
   analysis.evidence_revision = 2;
   assert.equal(await readActiveSignals(client, state, "2026-11-05T00:00:00Z", 14), null);
+});
+
+test("travel reads use the latest authorized source timezone and retain explicit source selection", async () => {
+  const state = { session: { session_id: sid, status: "ACTIVE" }, wearables: { revision: 3, available_timezones: ["Asia/Tokyo", "Asia/Shanghai"] } } as SupportState;
+  const requested: string[] = [];
+  const client: Pick<SupportClient, "trends" | "analysis"> = {
+    async trends(_id, params) { requested.push(params.timezone ?? "missing"); return { session_id: sid, revision: 3, timezone: params.timezone } as WearableTrends; },
+    async analysis(_id, params) { requested.push(params.timezone ?? "missing"); return { session_id: sid, evidence_revision: 3, timezone: params.timezone } as StateAnalysis; },
+  };
+  assert.ok(await readActiveSignals(client, state, "2026-11-05T00:00:00Z", 14));
+  assert.deepEqual(requested, ["Asia/Tokyo", "Asia/Tokyo"]);
+  requested.length = 0;
+  assert.ok(await readActiveSignals(client, state, "2026-11-05T00:00:00Z", 14, "Asia/Shanghai"));
+  assert.deepEqual(requested, ["Asia/Shanghai", "Asia/Shanghai"]);
+  client.trends = async () => ({ session_id: sid, revision: 3, timezone: "Asia/Tokyo" } as WearableTrends);
+  assert.equal(await readActiveSignals(client, state, "2026-11-05T00:00:00Z", 14, "Asia/Shanghai"), null);
+});
+
+test("switching an imported sample replaces mock data in the same session without clearing conversation", async (context) => {
+  let controller!: JourneyController;
+  renderToString(createElement(function Harness() { controller = useSupportJourney(false); return null; }));
+  const requests: { path: string; method: string; body: Record<string, unknown> | null }[] = [];
+  const session = { session_id: sid, revision: 2, status: "ACTIVE", messages: [{ role: "user", content: "保留这段虚构对话" }], workflow: { phase: "IDLE" } };
+  let shouldFail = false;
+  context.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, options?: RequestInit) => {
+    const path = String(url), body = options?.body ? JSON.parse(String(options.body)) as Record<string, unknown> : null;
+    requests.push({ path, method: options?.method ?? "GET", body });
+    if (path.endsWith("/health")) return Response.json({ runtime: { psychology_enabled: true } });
+    if (path.endsWith("/sessions")) return Response.json(session);
+    if (path.endsWith("/simulate")) return shouldFail ? Response.json({ code: "upstream_error" }, { status: 502 }) : Response.json({ accepted: 84, unchanged: 0, revision: 4 });
+    return Response.json({ session, understandings: [], wearables: { revision: 3, record_count: 84, providers: [] } });
+  });
+  await controller.ensureSession();
+  assert.equal(await controller.simulate("S02"), true);
+  const sent = requests.find((request) => request.path.endsWith("/simulate"));
+  assert.equal(sent?.body?.replace_existing, true);
+  assert.equal(sent?.body?.scenario_id, "S02");
+  assert.ok(sent?.path.includes(sid));
+  assert.equal(requests.filter((request) => request.method === "DELETE" || request.path.endsWith("/end")).length, 0);
+  shouldFail = true;
+  assert.equal(await controller.simulate("S04"), undefined);
+  assert.equal(requests.filter((request) => request.path.endsWith("/sessions")).length, 1);
 });

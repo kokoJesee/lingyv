@@ -71,7 +71,7 @@ export type SupportState = {
   support_route: SupportRoute | null;
   review_status: "unreviewed";
   understandings: UnderstandingView[];
-  wearables: { revision: number; record_count: number; providers: WearableProvider[] };
+  wearables: { revision: number; record_count: number; providers: WearableProvider[]; available_timezones?: string[] };
 };
 export type SupportHealth = {
   status: string;
@@ -161,6 +161,6 @@ export type UserReport = { report_id: string; content: string; revision: number 
 export type WearableReceipt = { revision: number; accepted?: number; unchanged?: number; invalid_metrics?: number; changed?: boolean; deleted?: number };
 export type Operation = { operation_id: string };
 export type SendSupportMessage = { content: string; request_id: string; correction_of?: { understanding_id: string; expected_revision: number } };
-export type SimulationRequest = Operation & { expected_revision: number; as_of: string; scenario_id: string; seed: number; days?: number; timezone?: string };
+export type SimulationRequest = Operation & { expected_revision: number; as_of: string; scenario_id: string; seed: number; days?: number; timezone?: string; replace_existing?: boolean };
 export type ConsentRequest = Operation & { expected_revision: number; provider: string; allowed_metrics: string[]; scopes: Scope[] };
 export type UnderstandingProposal = Operation & { interpretation: string; origin: "agent_hypothesis" | "user_report"; evidence_refs: EvidenceReference[] };

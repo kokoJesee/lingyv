@@ -44,7 +44,7 @@ const message: Projection = {
 };
 const state: Projection = {
   session, ...scalars("active_request_id", "support_mode", "support_route", "review_status"), understandings: [understandingView],
-  wearables: { revision: true, record_count: true, providers: [provider] },
+  wearables: { revision: true, record_count: true, providers: [provider], available_timezones: [true] },
 };
 const catalog: Projection = {
   metrics: [scalars("metric_id", "unit", "value_type", "usage", "required_method")],
@@ -86,7 +86,7 @@ const definitions: Route[] = [
   { expression: new RegExp(`^${sessionPrefix}/end$`), methods: ["POST"], output: session, bodyKeys: [] },
   { expression: new RegExp(`^${sessionPrefix}/workflow/cancel$`), methods: ["POST"], output: session, bodyKeys: ["run_id"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/import$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "batch"], maxBody: maxImportBody },
-  { expression: new RegExp(`^${sessionPrefix}/wearables/simulate$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "as_of", "scenario_id", "seed", "days", "timezone"] },
+  { expression: new RegExp(`^${sessionPrefix}/wearables/simulate$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "as_of", "scenario_id", "seed", "days", "timezone", "replace_existing"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/consent$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "provider", "allowed_metrics", "scopes"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/delete$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "record_id"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/trends$`), methods: ["GET"], output: trends, query: ["as_of", "days", "timezone"] },

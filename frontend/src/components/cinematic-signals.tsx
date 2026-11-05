@@ -124,14 +124,18 @@ function MetricChart({ journey }: { journey?: JourneyController }) {
 function ConnectedMetricChart({ journey }: { journey: JourneyController }) {
   const [group, setGroup] = useState<SignalGroup>("sleep");
   const [metric, setMetric] = useState("sleep_duration_minutes");
-  const [day, setDay] = useState(journey.range - 1);
+  const [selection, setSelection] = useState<{ key: string; index: number } | null>(null);
   const fill = useId();
   const reduced = useReducedMotion();
   const available = journey.catalog?.metrics.filter((item) => signalGroup(item.metric_id) === group) ?? [];
   const series = journey.trends?.series.find((item) => item.metric_id === metric);
-  const timezone = journey.trends?.timezone ?? "Asia/Shanghai";
+  const timezone = journey.trends?.timezone ?? journey.timezone;
+  const timezones = journey.state?.wearables.available_timezones ?? [];
+  const localDisplay = journey.state?.wearables.providers.find((provider) => provider.is_simulated && !provider.scopes.includes("local_analysis"));
   const plot = series ? signalPlot(series, timezone) : null;
-  const index = series ? Math.min(day, series.points.length - 1) : -1;
+  const selectionKey = `${journey.state?.session.session_id}:${journey.state?.wearables.revision}:${metric}:${journey.timezone}:${journey.range}`;
+  const latestAvailable = series?.points.reduce((latest, item, i) => item.value !== null ? i : latest, -1) ?? -1;
+  const index = series ? selection?.key === selectionKey ? Math.min(selection.index, series.points.length - 1) : latestAvailable >= 0 ? latestAvailable : series.points.length - 1 : -1;
   const point = series?.points[index];
   const selected = plot?.points[index];
   const reading = series ? signalReading(series, point, timezone) : { text: "—", unit: "", context: "" };
@@ -151,10 +155,11 @@ function ConnectedMetricChart({ journey }: { journey: JourneyController }) {
         {signalGroups.map((item) => <button type="button" key={item.id} aria-pressed={group === item.id} disabled={!journey.catalog} onClick={() => chooseGroup(item.id)}>{item.label}</button>)}
       </div>
       <div className="signals-ranges" role="group" aria-label="趋势时间范围">
-        {([7, 14, 30] as const).map((length) => <button type="button" key={length} aria-pressed={journey.range === length} onClick={() => { journey.setRange(length); setDay(length - 1); }}>{length} 天</button>)}
+        {([7, 14, 30] as const).map((length) => <button type="button" key={length} aria-pressed={journey.range === length} onClick={() => journey.setRange(length)}>{length} 天</button>)}
       </div>
     </div>
-    <label className="signals-metric-select"><span>查看指标</span><select value={metric} disabled={!available.length} onChange={(event) => setMetric(event.target.value)}>{available.length ? available.map((item) => <option value={item.metric_id} key={item.metric_id}>{metricName(item.metric_id)}</option>) : <option value={metric}>等待指标目录</option>}</select></label>
+    <label className="signals-metric-select"><span>查看指标</span><select aria-label="查看指标" value={metric} disabled={!available.length} onChange={(event) => setMetric(event.target.value)}>{available.length ? available.map((item) => <option value={item.metric_id} key={item.metric_id}>{metricName(item.metric_id)}</option>) : <option value={metric}>等待指标目录</option>}</select></label>
+    {timezones.length > 1 && <label className="signals-metric-select"><span>记录时区</span><select aria-label="记录时区" value={journey.timezone} onChange={(event) => journey.setTimezone(event.target.value)}>{timezones.map((zone) => <option value={zone} key={zone}>{zone === "Asia/Shanghai" ? "上海 · UTC+8" : zone === "Asia/Tokyo" ? "东京 · UTC+9" : zone}</option>)}</select></label>}
     <div className="signals-reading" aria-live="polite" aria-atomic="true">
       <span>{point ? `${point.date} · ${series?.source?.is_simulated ? "模拟读数" : "设备读数"}` : stateText}</span>
       <strong>{reading.text} <small>{reading.unit}</small></strong>
@@ -171,9 +176,11 @@ function ConnectedMetricChart({ journey }: { journey: JourneyController }) {
       {selected?.y !== null && selected?.y !== undefined && <><line x1={selected.x} x2={selected.x} y1={selected.y} y2="112" className="signals-plot-cross" /><circle cx={selected.x} cy={selected.y} r="10" className="signals-plot-halo" /><circle cx={selected.x} cy={selected.y} r="4.5" className="signals-plot-dot" /></>}
     </svg>
     <div className="signals-days" data-range={journey.range} role="group" aria-label="查看单日授权记录">
-      {series?.points.map((item, i) => { const display = signalReading(series, item, timezone); return <button type="button" key={item.date} aria-pressed={index === i} data-missing={plot?.points[i].value === null} aria-label={`${item.date}，${display.text} ${display.unit} ${display.context}`} onClick={() => setDay(i)}>{item.date.slice(-2)}</button>; })}
+      {series?.points.map((item, i) => { const display = signalReading(series, item, timezone); return <button type="button" key={item.date} aria-pressed={index === i} data-missing={plot?.points[i].value === null} aria-label={`${item.date}，${display.text} ${display.unit} ${display.context}`} onClick={() => setSelection({ key: selectionKey, index: i })}>{item.date.slice(-2)}</button>; })}
     </div>
     <p className="signals-chart-note">{point && reading.text === "—" ? `${signalQuality[point.quality] ?? "读数不可用"}。` : ""}{reading.context && `${reading.context}。`}{status !== "ready" ? `${stateText}。` : "同一来源的授权记录；缺测处断开，不补为零。"}{timestamp && "入睡与醒来时间按记录所在地时区展示，跨午夜的变化连续比较。"}{series?.source?.score_scale && ` 厂商量表范围 ${series.source.score_scale.minimum}–${series.source.score_scale.maximum}，分值不跨厂商比较。`}</p>
+    {timezones.length > 1 && <p className="signals-chart-note">当前按 {journey.timezone} 的记录查看；其他时区的日期留空，可切换查看。</p>}
+    {status === "not_authorized" && localDisplay && <button className="signals-button signals-outline" type="button" disabled={!!journey.action || journey.pending || journey.state?.session.status !== "ACTIVE"} onClick={() => void journey.consent(localDisplay, localDisplay.allowed_metrics.length ? localDisplay.allowed_metrics : localDisplay.available_metrics, [...localDisplay.scopes, "local_analysis"])}>允许本机展示模拟读数</button>}
   </div>;
 }
 
@@ -195,12 +202,12 @@ function DataSettings({ journey }: { journey: JourneyController }) {
   const active = journey.state?.session.status === "ACTIVE";
   const disabled = !!journey.action || journey.pending;
   return <details className="signals-data-settings"><summary>数据与使用设置</summary>
-    <p>请只使用虚构记录。先开启旅程，再导入模拟数据；导入不会自动授予展示或对话用途。</p>
+    <p>先选样本并导入，再允许本机展示模拟读数。用于支持对话需要另行选择。</p>
     {!journey.health?.runtime.psychology_enabled && <p>数据服务尚未就绪，可刷新连接后重试。</p>}
     <div className="signals-settings-actions">{!active && <button className="signals-button signals-outline" type="button" disabled={disabled || !journey.health?.runtime.psychology_enabled} onClick={() => void journey.start()}>开启本次旅程</button>}<button className="signals-button signals-outline" type="button" disabled={disabled} onClick={() => void journey.refreshAll()}>刷新连接</button></div>
-    <label className="signals-metric-select"><span>模拟样本</span><select value={scenario} disabled={disabled || !active || !!journey.state?.wearables.record_count} onChange={(e) => setScenario(e.target.value)}>{(journey.catalog?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{item.label}</option>)}</select></label>
-    <button className="signals-button signals-outline" type="button" disabled={disabled || !active || !journey.catalog || !!journey.state?.wearables.record_count} onClick={() => void journey.simulate(scenario)}>导入 21 天模拟记录</button>
-    {!!journey.state?.wearables.record_count && <p>当前已有记录。更换样本需先清空或开启新旅程，避免混合来源。</p>}
+    <label className="signals-metric-select"><span>模拟样本</span><select aria-label="模拟样本" value={scenario} disabled={disabled || !active} onChange={(e) => setScenario(e.target.value)}>{(journey.catalog?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{item.label}</option>)}</select></label>
+    <button className="signals-button signals-outline" type="button" disabled={disabled || !active || !journey.catalog} onClick={() => void journey.simulate(scenario)}>{journey.state?.wearables.record_count ? "切换到所选样本" : "导入 21 天模拟记录"}</button>
+    {!!journey.state?.wearables.record_count && <p>选择后点击切换：替换模拟记录并保留对话，已允许的本机展示继续生效；用于对话需重新选择。</p>}
     {journey.state?.wearables.providers.map((provider) => <ProviderSettings key={`${provider.provider}:${journey.state?.wearables.revision}`} provider={provider} journey={journey} />)}
     {journey.action && <p role="status">{journey.action}…</p>}{journey.notice && <p role="status">{journey.notice}</p>}{journey.error && <p role="alert">{journey.error}</p>}
   </details>;

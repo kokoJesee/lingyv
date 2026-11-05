@@ -200,3 +200,19 @@ test("Next-style empty request streams permit bodyless operations but do not dis
   assert.equal((await handleSupportRequest(streamed(`/sessions/${sessionId}/messages`, "POST"))).status, 400);
   assert.equal(fetchMock.mock.callCount(), 4);
 });
+
+test("sample replacement intent and authorized timezone choices pass through the BFF", async (context) => {
+  configure(context);
+  const bodies: unknown[] = [];
+  context.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, options?: RequestInit) => {
+    if (String(url).endsWith("/simulate")) { bodies.push(JSON.parse(String(options?.body))); return Response.json({ accepted: 84, revision: 4 }); }
+    return Response.json({ session: { session_id: sessionId, messages: [], workflow }, support_route: null, understandings: [], wearables: { revision: 4, record_count: 84, providers: [], available_timezones: ["Asia/Tokyo", "Asia/Shanghai"] } });
+  });
+  const body = { operation_id: requestId, expected_revision: 3, as_of: "2026-11-05T00:00:00Z", scenario_id: "S04", seed: 42, days: 21, replace_existing: true };
+  assert.equal((await handleSupportRequest(request(`/sessions/${sessionId}/wearables/simulate`, "POST", body))).status, 200);
+  assert.deepEqual(bodies, [body]);
+  const response = await handleSupportRequest(request(`/sessions/${sessionId}/support-state`));
+  assert.equal(response.status, 200);
+  const state = await response.json();
+  assert.deepEqual(state.wearables.available_timezones, ["Asia/Tokyo", "Asia/Shanghai"]);
+});
