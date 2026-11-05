@@ -17,7 +17,11 @@ import { CaseForgeView } from "./support-views";
 import { CinematicCanvas, CinematicArchive } from "./cinematic-reflections";
 import { CinematicSignals } from "./cinematic-signals";
 import { WorldMedia } from "./world-media";
+import { useSupportJourney } from "./use-support-journey";
+import { encodeHypotheses, projectReflection } from "../lib/support-presentation";
+import type { SupportResponse } from "../lib/support-types";
 import "./world-pages.css";
+import "./agent-connection.css";
 
 const nav = [
   { id: "universe", label: "心象宇宙", icon: Orbit },
@@ -28,7 +32,6 @@ const nav = [
 ] as const;
 type MainView = (typeof nav)[number]["id"];
 type View = MainView | "caseforge";
-type Mode = "demo" | "fastapi";
 const choices = ["keep", "release", "next"] as const;
 const choiceIcons = { keep: Star, release: Feather, next: Compass };
 const scene = {
@@ -54,14 +57,20 @@ function SceneWave({ state }: { state: keyof typeof scene }) {
 
 export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
   const [view, setView] = useState<View>("universe");
-  const [mode, setMode] = useState<Mode>("demo");
+  const journey = useSupportJourney(liveEnabled);
+  const backend = liveEnabled && journey.health?.runtime.psychology_enabled === true;
+  const fixture = backend && journey.health?.runtime.psychology_demo_mode === true;
+  const connectionReady = !liveEnabled || !!journey.health;
+  const [understandingId, setUnderstandingId] = useState<string | null>(null);
+  const previousSession = useRef<string | null>(null);
   const [input, setInput] = useState("");
   const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState<Reflection | null>(null);
   const [fields, setFields] = useState<HypothesisFields | null>(null);
   const [outcome, setOutcome] = useState<SupportOutcome | null>(null);
   const [cards, setCards] = useState<ExperienceCard[]>([]);
-  const [pending, setPending] = useState(false);
+  const [localPending, setPending] = useState(false);
+  const pending = localPending || journey.pending || !!journey.action;
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [privacy, setPrivacy] = useState(false);
@@ -147,50 +156,81 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
     window.scrollTo({ top: 0 });
   }
 
-  function changeMode(next: Mode) {
-    if (next === mode) return;
-    setMode(next);
-    setConsent(false);
-    setError("");
+  // A restored backend understanding populates the existing four-layer canvas.
+  useEffect(() => {
+    const session = journey.state?.session;
+    if (!session || previousSession.current === session.session_id) return;
+    previousSession.current = session.session_id;
+    const latest = [...(journey.state?.understandings ?? [])].sort((a, b) => b.understanding.updated_at.localeCompare(a.understanding.updated_at))[0];
+    const restored = latest ? projectReflection({ understanding: latest, currentInput: "", reply: session.messages.filter((m) => m.role === "assistant").at(-1)?.content ?? "" }) : null;
+    setDraft(restored); setFields(restored?.hypotheses ?? null);
+    setUnderstandingId(latest?.understanding.understanding_id ?? null);
+    setOutcome(null); setSaved(false); setConsent(false);
+  }, [journey.state?.session.session_id]);
+
+  const linkedUnderstanding = journey.state?.understandings.find((entry) => entry.understanding.understanding_id === understandingId);
+  const currentRevision = !understandingId || (!!linkedUnderstanding && ["proposed", "confirmed"].includes(linkedUnderstanding.understanding.status) && linkedUnderstanding.understanding.revision === draft?.revision);
+  const latestRoute = journey.response?.session_id === journey.state?.session.session_id && journey.response && journey.response.revision > (journey.state?.session.revision ?? -1)
+    ? journey.response.psychology?.result.route : journey.state?.support_route;
+  const safety = backend && !!latestRoute && latestRoute !== "routine_support";
+
+  function reloadUnderstanding() {
+    const latest = linkedUnderstanding ? projectReflection({ understanding: linkedUnderstanding, currentInput: draft?.input ?? "", reply: draft?.reply ?? "" }) : null;
+    setDraft(latest); setFields(latest?.hypotheses ?? null);
+    setUnderstandingId(latest ? linkedUnderstanding!.understanding.understanding_id : null);
+    setOutcome(null); setSaved(false);
+  }
+
+  function applyResponse(result: SupportResponse, text: string) {
+    const next = projectReflection({ currentInput: text, reply: result.reply, id: result.request_id, createdAt: new Date().toISOString() });
+    if (!next) return;
+    setDraft(next); setFields(next.hypotheses); setUnderstandingId(null); setOutcome(null); setSaved(false);
+    setInput((current) => current.trim() === text.trim() ? "" : current);
+    requestAnimationFrame(scrollToDraft);
   }
 
   async function generate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || !input.trim() || (mode === "fastapi" && !consent)) return;
+    if (pending || !input.trim() || !connectionReady || (liveEnabled && !consent)) return;
     const controller = new AbortController();
     request.current = controller;
-    setError("");
-    setPending(true);
-    const usedMode = mode;
-    if (usedMode === "fastapi") setConsent(false);
+    const text = input.trim();
+    setError(""); setPending(true); setConsent(false);
     try {
-      const adapter = usedMode === "fastapi" ? createFastApiAgent("/api/agent") : demoAgent;
-      const result = await adapter.reflect({
-        text: input,
-        consent: usedMode === "fastapi",
-        previous: usedMode === "demo" ? cards[0] : undefined,
-      }, controller.signal);
-      if (request.current !== controller) return;
-      setDraft(result);
-      setFields(result.hypotheses);
-      setOutcome(null);
-      setSaved(false);
-      requestAnimationFrame(scrollToDraft);
-    } catch (issue) {
-      if (controller.signal.aborted || request.current !== controller) return;
-      setError(issue instanceof Error ? issue.message : "暂时没有收到回复，请重试。");
-    } finally {
-      if (request.current === controller) {
-        setPending(false);
-        request.current = null;
+      if (backend) {
+        if (!await journey.ensureSession() || request.current !== controller) return;
+        const result = await journey.send({ content: text, request_id: crypto.randomUUID() });
+        if (result && request.current === controller) applyResponse(result, text);
+      } else {
+        const result = await (liveEnabled ? createFastApiAgent("/api/agent") : demoAgent).reflect({ text, consent: liveEnabled, previous: liveEnabled ? undefined : cards[0] }, controller.signal);
+        if (request.current !== controller) return;
+        const shown = liveEnabled ? projectReflection({ currentInput: text, reply: result.reply, id: result.id, createdAt: result.createdAt }) : result;
+        if (!shown) return;
+        setDraft(shown); setFields(shown.hypotheses); setUnderstandingId(null); setOutcome(null); setSaved(false);
+        setInput((current) => current.trim() === text ? "" : current);
+        requestAnimationFrame(scrollToDraft);
       }
+    } catch (issue) {
+      if (!controller.signal.aborted && request.current === controller) setError(issue instanceof Error ? issue.message : "暂时没有收到回复，请重试。");
+    } finally {
+      if (request.current === controller) { setPending(false); request.current = null; }
     }
   }
 
+  async function retry(same: boolean) {
+    if (!consent || !journey.lastAttempt || pending) return;
+    const text = journey.lastAttempt.content;
+    const controller = new AbortController();
+    request.current = controller;
+    setConsent(false); setError(""); setPending(true);
+    try { const result = await journey.retry(same); if (result && request.current === controller) applyResponse(result, text); }
+    catch (issue) { if (request.current === controller) setError(issue instanceof Error ? issue.message : "重试未完成，请稍后再试。"); }
+    finally { if (request.current === controller) { setPending(false); request.current = null; } }
+  }
+
   function cancel() {
-    request.current?.abort();
-    request.current = null;
-    setPending(false);
+    if (backend) { request.current = null; setPending(false); if (journey.pending) void journey.stop(); return; }
+    request.current?.abort(); request.current = null; setPending(false);
     setError("已停止这次请求。之前完成的内容仍然保留。");
   }
 
@@ -200,21 +240,31 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
   }
 
   const dirty = !!draft && !!fields && hypothesisKeys.some((key) => draft.hypotheses[key] !== fields[key]);
-  const confirmed = !!draft && draft.status !== "proposed" && !dirty;
+  const confirmed = !!draft && draft.status !== "proposed" && !dirty && (!backend || (!!linkedUnderstanding && linkedUnderstanding.understanding.status === "confirmed" && currentRevision));
   const sceneKey = confirmed && outcome ? outcome.choice : confirmed ? "confirmed" : draft ? "proposed" : "idle";
   const currentScene = scene[sceneKey];
 
-  function confirm() {
-    if (!draft || !fields) return;
-    const result = reviseReflection(draft, fields);
-    setDraft(result);
-    setFields(result.hypotheses);
-    setOutcome(null);
-    setSaved(false);
+  async function confirm() {
+    if (!draft || !fields || pending || !currentRevision || (backend && journey.state?.session.status !== "ACTIVE")) return;
+    setError("");
+    if (!backend) {
+      try { const result = reviseReflection(draft, fields); setDraft(result); setFields(result.hypotheses); setOutcome(null); setSaved(false); }
+      catch (issue) { setError(issue instanceof Error ? issue.message : "当前理解未能确认。"); }
+      return;
+    }
+    setPending(true);
+    try {
+      const confirmedView = await journey.commitUnderstanding(encodeHypotheses(fields), linkedUnderstanding);
+      if (!confirmedView) return;
+      const result = projectReflection({ understanding: confirmedView, currentInput: draft.input, reply: draft.reply, createdAt: draft.createdAt });
+      if (!result) return;
+      setDraft(result); setFields(result.hypotheses); setUnderstandingId(confirmedView.understanding.understanding_id); setOutcome(null); setSaved(false);
+    } catch (issue) { setError(issue instanceof Error ? issue.message : "当前理解未能确认。"); }
+    finally { setPending(false); }
   }
 
   function selectSupport(choice: SupportChoice) {
-    if (!draft || !confirmed) return;
+    if (!draft || !confirmed || safety) return;
     setOutcome(chooseSupport(draft, choice));
     setSaved(false);
   }
@@ -226,11 +276,12 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
     setSaved(true);
   }
 
-  function clearSession() {
+  async function clearSession() {
+    if (backend && journey.state && !await journey.clear()) return;
     request.current?.abort();
     request.current = null;
     setPending(false);
-    setMode("demo");
+    setUnderstandingId(null);
     setInput("");
     setConsent(false);
     setDraft(null);
@@ -276,8 +327,9 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
       <main id="main-content" ref={main} tabIndex={-1} className="content">
         {privacy && <section id="privacy-info" className="privacy-drawer" aria-label="演示与隐私说明">
           <LockKeyhole size={20} aria-hidden="true" />
-          <div><strong>这是演示空间</strong><p>请只填写虚构内容。默认模式在本页内存运行；刷新后会清除草稿和经历卡。联网模式须逐次同意发送文本，不发送画布或经历卡。</p></div>
-          <button type="button" className="btn btn-secondary" onClick={clearSession}>清空本页记录</button>
+          <div><strong>这是演示空间</strong><p>{backend ? "仅使用虚构内容。对话和确认理解保留在本机后端内存，设备用途单独选择；刷新不会删除后端数据。经历卡暂存本页，旅程可在成长档案中主动保存。" : "请只填写虚构内容。经历卡暂存本页，刷新后清除；联网发送需要你的同意。"}</p></div>
+          <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => void clearSession()}>清空当前记录</button>
+          {backend && journey.state?.session.status === "ACTIVE" && <button type="button" className="text-button" disabled={pending} onClick={() => void journey.end()}>结束当前旅程</button>}
           <button type="button" className="icon-button" aria-label="关闭演示说明" onClick={() => setPrivacy(false)}><X size={18} /></button>
         </section>}
 
@@ -291,25 +343,25 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
                 <h1 id="agent-title" lang="en">A space to be heard.</h1>
                 <p className="agent-intro-subtitle">和拾光说说话。<span>不必先整理好自己。</span></p>
                 <form className="agent-composer-form" onSubmit={generate}>
-                  {liveEnabled && <div className="mode-switch" aria-label="回复来源">
-                    <button type="button" aria-pressed={mode === "demo"} disabled={pending} onClick={() => changeMode("demo")}>本地演示</button>
-                    <button type="button" aria-pressed={mode === "fastapi"} disabled={pending} onClick={() => changeMode("fastapi")}>联网通用聊天</button>
-                  </div>}
                   <label htmlFor="story-input" className="sr-only">说说发生了什么</label>
                   <div className="agent-composer">
                     <textarea ref={inputField} id="story-input" rows={1} placeholder="此刻，有什么想说的吗？" maxLength={maxInputLength} value={input} disabled={pending} onChange={(e) => setInput(e.target.value)} />
                     {pending ? <button type="button" className="agent-send" onClick={cancel} aria-label="停止这次请求"><X size={20} /></button>
-                      : <button type="submit" className="agent-send" disabled={!input.trim() || (mode === "fastapi" && !consent)} aria-label="生成理解草稿"><ArrowRight size={22} /></button>}
+                      : <button type="submit" className="agent-send" disabled={!input.trim() || (liveEnabled && !consent) || !connectionReady} aria-label="生成理解草稿"><ArrowRight size={22} /></button>}
                   </div>
                   <div className="input-meta">
                     <button type="button" className="text-button" disabled={pending} onClick={() => setInput(demoSample)}><Sparkles size={14} /> 使用虚构示例</button>
                     <span>{input.length} / {maxInputLength}</span>
                   </div>
-                  {mode === "fastapi" && <label className="consent-box"><input type="checkbox" checked={consent} disabled={pending} onChange={(e) => setConsent(e.target.checked)} /><span>我同意将这次的虚构文本发送给本机 FastAPI 及其配置的 DeepSeek 模型。本次仅回复文本，下面的理解草稿仍来自模拟。</span></label>}
-                  <p className="agent-data-note"><LockKeyhole size={12} /> {mode === "demo" ? "本地模拟理解 · 请仅输入虚构内容 · 刷新即清除" : "仅供本机联调 · 理解结构仍为模拟 · 请勿输入真实隐私"}</p>
+                  {liveEnabled && <label className="consent-box"><input type="checkbox" checked={consent} disabled={pending} onChange={(e) => setConsent(e.target.checked)} /><span>{fixture ? "使用这次虚构输入与当前旅程，生成模拟回应。" : backend ? "同意使用本次虚构输入、会话历史与已确认理解生成回应；设备用途另行选择。" : "同意发送本次虚构输入以生成回应。"}</span></label>}
+                  <p className="agent-data-note"><LockKeyhole size={12} /> {!liveEnabled ? "本地模拟理解 · 请仅输入虚构内容 · 刷新即清除" : !connectionReady ? "正在连接本机服务" : fixture ? "模拟回应 · 无真实设备连接 · 仅使用虚构内容" : "请仅使用虚构内容 · 回应未经专业审核"}</p>
                   {pending && <p className="inline-status" role="status">拾光正在准备回应…</p>}
-                  {error && <p className="inline-status" role="alert">{error}</p>}
+                  {(error || journey.error) && <p className="inline-status" role="alert">{error || journey.error}</p>}
+                  {liveEnabled && !connectionReady && <button type="button" className="text-button" disabled={pending} onClick={() => void journey.refreshAll()}>重新连接</button>}
+                  {backend && journey.failedAttempt && !pending && <div className="input-meta"><button type="button" className="text-button" disabled={!consent} onClick={() => void retry(true)}>重取本次结果</button><button type="button" className="text-button" disabled={!consent} onClick={() => void retry(false)}>重新尝试</button></div>}
                 </form>
+                {backend && !!journey.state?.session.messages.length && <details className="agent-history"><summary>查看本次旅程对话</summary>{journey.state.session.messages.map((message, index) => <p key={index}><strong>{message.role === "user" ? "你" : "拾光"}：</strong>{message.content}</p>)}</details>}
+                {liveEnabled && <details className="agent-support-access" open={safety || undefined}><summary><HeartHandshake size={14} />现实支持入口</summary><p>{journey.support.message}</p><ul>{journey.support.actions.map((action) => <li key={action}>{action}</li>)}</ul><small>随时可用，无需先确认画布；不会自动联系他人。</small></details>}
                 <p className="agent-intro-promise">拾光会把听见的轻轻放在你面前。<br />哪些理解贴近你，怎样继续，都由你决定。</p>
                 <button type="button" className="agent-manifesto" onClick={draft ? scrollToDraft : () => setPrivacy(true)}>{draft ? "继续整理这段经历" : "关于这个空间"} <ArrowRight size={14} /></button>
               </div>
@@ -324,8 +376,9 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
                 {draft && fields && <>
                   <section className="flow-panel reflection-panel" aria-labelledby="draft-title">
                     <div className="panel-head"><span className="step-index">02</span><div><h2 id="draft-title" tabIndex={-1} ref={confirmRef}>看看拾光听见了什么</h2><p>包括「事实」在内，都可以重写、留空或确认。</p></div></div>
-                    <div className="reply"><span><Aperture size={17} /> 拾光 · {draft.source === "fastapi" ? "联网通用回复，未经你确认" : "演示回复，未经你确认"}</span><p>{draft.reply}</p></div>
-                    <div className="draft-note"><Pencil size={14} /> 模拟理解 · 可修改的假设 · 非诊断</div>
+                    <div className="reply"><span><Aperture size={17} /> 拾光 · {fixture ? "模拟回应" : draft.source === "fastapi" ? "对话回应，未经专业审核" : "演示回复，未经你确认"}</span><p>{draft.reply}</p></div>
+                    <div className="draft-note"><Pencil size={14} /> {liveEnabled ? "四栏由你填写和确认；未提供的感受与需要保持留白。" : "模拟理解 · 可修改的假设 · 非诊断"}</div>
+                    {backend && !currentRevision && <p role="status">这份理解的来源或版本已变化。<button type="button" className="text-button" disabled={pending} onClick={reloadUnderstanding}>载入当前版本重新核对</button></p>}
                     <div className="field-grid">
                       {hypothesisKeys.map((key) => <label key={key}>
                         <span>{hypothesisLabels[key]}</span>
@@ -333,12 +386,12 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
                       </label>)}
                     </div>
                     <div className="flow-actions">
-                      <button type="button" className="btn btn-secondary" disabled={pending || confirmed} onClick={confirm}><Check size={16} /> {confirmed ? "理解已确认" : "确认当前理解"}</button>
+                      <button type="button" className="btn btn-secondary" disabled={pending || confirmed || !currentRevision || (backend && journey.state?.session.status !== "ACTIVE")} onClick={() => void confirm()}><Check size={16} /> {confirmed ? "理解已确认" : "确认当前理解"}</button>
                       <small aria-live="polite">{dirty ? "有未确认的修改" : confirmed ? "拾光会用你确认的版本来回应" : "确认后可选择怎样被支持"}</small>
                     </div>
                   </section>
 
-                  {confirmed && <section className="flow-panel support-panel" aria-labelledby="support-title">
+                  {confirmed && !safety && <section className="flow-panel support-panel" aria-labelledby="support-title">
                     <div className="panel-head"><span className="step-index">03</span><div><h2 id="support-title">此刻，希望怎么继续？</h2><p>你选的方式会改变拾光的回应，以及静水湾接下来的样子。</p></div></div>
                     <div className="support-grid" aria-label="支持选择">
                       {choices.map((choice) => { const Icon = choiceIcons[choice]; return <button key={choice} type="button" aria-pressed={outcome?.choice === choice} onClick={() => selectSupport(choice)} disabled={pending}>
@@ -367,9 +420,9 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
             </div>}
           </section>}
 
-          {view === "canvas" && <CinematicCanvas draft={draft} onOpenAgent={() => go("agent")} />}
-          {view === "signals" && <CinematicSignals onOpenAgent={() => go("agent")} />}
-          {view === "archive" && <CinematicArchive cards={cards} onOpenAgent={() => go("agent")} />}
+          {view === "canvas" && <CinematicCanvas draft={backend && !currentRevision ? null : draft} onOpenAgent={() => go("agent")} />}
+          {view === "signals" && <CinematicSignals journey={liveEnabled ? journey : undefined} onOpenAgent={() => go("agent")} />}
+          {view === "archive" && <CinematicArchive cards={cards} journey={backend ? journey : undefined} onOpenAgent={() => go("agent")} />}
           {view === "caseforge" && <CaseForgeView />}
         </div>
       </main>

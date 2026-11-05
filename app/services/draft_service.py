@@ -64,7 +64,7 @@ class DraftService:
                 return Draft.model_validate(previous.result)
             if record.lifecycle_pending or record.session.status != SessionStatus.ACTIVE:
                 raise RuntimeFailure("session_not_editable", "会话正在清空或已结束。")
-            if len(record.operations) + len(record.draft_operations) >= self.settings.runtime_max_requests_per_session:
+            if len(record.operations) + len(record.draft_operations) + len(record.wearables.operations) + len(record.understandings.operations) >= self.settings.runtime_max_requests_per_session:
                 raise RuntimeFailure("request_limit_exceeded", "会话操作记录已达上限，请新建会话。")
             operation = OperationRecord(fingerprint=fingerprint)
             record.draft_operations[request.operation_id] = operation
