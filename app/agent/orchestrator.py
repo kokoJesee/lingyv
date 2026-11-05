@@ -7,6 +7,7 @@ import json
 from uuid import UUID
 
 from app.agent.errors import RuntimeFailure
+from app.calls.scheduler import call_scope
 from app.agent.context import build_context
 from app.agent.events import emit
 from app.agent.support_context import prepare_support, commit_correction, prune_cached_results
@@ -102,9 +103,13 @@ class AgentOrchestrator:
                         record, self.sessions, request, self.settings)
                     self.engine.advance(workflow, "model_call")
                     emit(record, "step_started", request.request_id)
-                    record.active_task = asyncio.create_task(PsychologyAdapter(model, self.settings).evaluate(
-                        prepared.request, ensure_current=lambda: builder.validate_current(prepared),
-                        previous_route=record.support_route))
+                    with call_scope(
+                        request.request_id, workflow.run_id,
+                        deadline=asyncio.get_running_loop().time() + self.settings.llm_timeout_seconds,
+                    ):
+                        record.active_task = asyncio.create_task(PsychologyAdapter(model, self.settings).evaluate(
+                            prepared.request, ensure_current=lambda: builder.validate_current(prepared),
+                            previous_route=record.support_route))
                     psychology_response = await record.active_task
                     builder.validate_current(prepared)
                     reply = psychology_response.result.reply
@@ -116,7 +121,11 @@ class AgentOrchestrator:
                     manifest = bundle.manifest
                     self.engine.advance(workflow, "model_call")
                     emit(record, "step_started", request.request_id)
-                    record.active_task = asyncio.create_task(model.generate_reply(bundle.messages))
+                    with call_scope(
+                        request.request_id, workflow.run_id,
+                        deadline=asyncio.get_running_loop().time() + self.settings.llm_timeout_seconds,
+                    ):
+                        record.active_task = asyncio.create_task(model.generate_reply(bundle.messages))
                     try:
                         reply = await asyncio.wait_for(record.active_task, timeout=self.settings.llm_timeout_seconds)
                     except TimeoutError:

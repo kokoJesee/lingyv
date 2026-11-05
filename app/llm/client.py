@@ -4,7 +4,9 @@ from time import perf_counter
 from typing import Protocol
 
 import httpx
+from starlette.requests import Request
 
+from app.calls.scheduler import CallLimitError, CallScheduler, CallTicket
 from app.config.settings import Settings, get_settings
 from app.llm.errors import LLMError
 from app.llm.prompts import PROMPT_VERSION, SYSTEM_PROMPT
@@ -22,9 +24,11 @@ class DeepSeekClient:
         self,
         settings: Settings,
         transport: httpx.AsyncBaseTransport | None = None,
+        scheduler: CallScheduler | None = None,
     ):
         self.settings = settings
         self.transport = transport
+        self.scheduler = scheduler or CallScheduler(settings)
 
     async def generate_reply(self, messages: Sequence[Message]) -> str:
         return await self._generate(messages, SYSTEM_PROMPT, PROMPT_VERSION)
@@ -41,6 +45,16 @@ class DeepSeekClient:
                 "尚未配置 DeepSeek API Key，请在项目 .env 中填写 DEEPSEEK_API_KEY。",
                 status_code=503,
             )
+
+        try:
+            async with self.scheduler.slot("deepseek", self.settings.llm_timeout_seconds) as ticket:
+                return await self._request_reply(messages, ticket, system_prompt, prompt_version)
+        except CallLimitError as error:
+            if error.code == "external_call_timeout":
+                raise LLMError("model_timeout", "模型回复超时，请稍后重试。", 504) from None
+            raise
+
+    async def _request_reply(self, messages: Sequence[Message], ticket: CallTicket, system_prompt: str, prompt_version: str) -> str:
 
         payload = {
             "model": self.settings.deepseek_model,
@@ -112,7 +126,10 @@ class DeepSeekClient:
             )
 
         try:
-            choice = response.json()["choices"][0]
+            body = response.json()
+            if isinstance(body, dict):
+                ticket.record_tokens(body.get("usage"))
+            choice = body["choices"][0]
             finish_reason = choice["finish_reason"]
             reply = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError):
@@ -141,5 +158,6 @@ class DeepSeekClient:
         return reply
 
 
-def get_chat_model() -> ChatModel:
-    return DeepSeekClient(get_settings())
+def get_chat_model(request: Request = None) -> ChatModel:
+    scheduler = request.app.state.call_scheduler if request is not None else None
+    return DeepSeekClient(get_settings(), scheduler=scheduler)

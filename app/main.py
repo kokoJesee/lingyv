@@ -33,6 +33,9 @@ from app.schemas.message import SendMessageRequest, SendMessageResponse
 from app.schemas.session import Session, SessionSummary
 from app.schemas.workflow import CancelWorkflowRequest, ConfirmWorkflowRequest
 from app.services.session_service import session_service
+from app.audio.routes import router as audio_router
+from app.audio.service import AudioService
+from app.calls.scheduler import CallScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +52,22 @@ async def lifespan(app: FastAPI):
         "Agent starting | model=%s | key_configured=%s | prompt_version=%s",
         settings.deepseek_model, settings.key_configured, PSYCHOLOGY_PROMPT_VERSION if settings.psychology_enabled else PROMPT_VERSION,
     )
-    yield
-    logger.info("Agent stopped")
+    app.state.call_scheduler = CallScheduler(settings)
+    app.state.audio_service = AudioService(settings, scheduler=app.state.call_scheduler)
+    try:
+        yield
+    finally:
+        await app.state.audio_service.close()
+        await app.state.call_scheduler.close()
+        logger.info("Agent stopped")
 
 
 app = FastAPI(
     title="Personal Emotional Agent",
     description="Personal Emotional Agent runtime: sessions, workflows and model calls.",
-    version="0.5.0", lifespan=lifespan,
+    version="0.6.0", lifespan=lifespan,
 )
+app.include_router(audio_router)
 
 
 app.add_middleware(WearableUploadLimit)
@@ -105,6 +115,11 @@ async def health_check():
 @app.post("/sessions", response_model=Session, status_code=201)
 async def create_session():
     return session_service.create().model_copy(deep=True)
+
+
+@app.get("/runtime/calls", tags=["runtime"], summary="外部调用队列与脱敏用量记录")
+async def external_call_status(request: Request):
+    return request.app.state.call_scheduler.snapshot()
 
 
 @app.get("/sessions", response_model=list[SessionSummary])
