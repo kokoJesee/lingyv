@@ -27,6 +27,14 @@ class DeepSeekClient:
         self.transport = transport
 
     async def generate_reply(self, messages: Sequence[Message]) -> str:
+        return await self._generate(messages, SYSTEM_PROMPT, PROMPT_VERSION)
+
+    async def generate_structured(self, *, system_prompt: str, request_json: str) -> str:
+        # Separate system instructions; preserve the existing chat endpoint and transport.
+        from app.psychology.prompts import PROMPT_VERSION as psychology_prompt_version
+        return await self._generate([Message(role="user", content=request_json)], system_prompt, psychology_prompt_version)
+
+    async def _generate(self, messages: Sequence[Message], system_prompt: str, prompt_version: str) -> str:
         if not self.settings.key_configured:
             raise LLMError(
                 "model_not_configured",
@@ -37,7 +45,7 @@ class DeepSeekClient:
         payload = {
             "model": self.settings.deepseek_model,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 *[message.model_dump() for message in messages],
             ],
             "stream": False,
@@ -48,7 +56,7 @@ class DeepSeekClient:
         logger.info(
             "DeepSeek request started | model=%s | context_messages=%d | prompt_version=%s",
             self.settings.deepseek_model,
-            len(messages), PROMPT_VERSION,
+            len(messages), prompt_version,
         )
 
         try:

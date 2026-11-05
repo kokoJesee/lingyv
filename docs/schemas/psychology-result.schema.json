@@ -1,0 +1,80 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "route": {
+      "enum": [
+        "routine_support",
+        "clarify_safety",
+        "safety_support",
+        "urgent_real_world_help"
+      ],
+      "title": "Route",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "items": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "uncertainties": {
+      "items": {
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      },
+      "title": "Uncertainties",
+      "type": "array"
+    },
+    "reply": {
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Reply",
+      "type": "string"
+    },
+    "suggested_next_step": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "pattern": "\\S",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Suggested Next Step"
+    },
+    "memory_update": {
+      "title": "Memory Update",
+      "type": "null"
+    },
+    "follow_up_offer": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "pattern": "\\S",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Follow Up Offer"
+    }
+  },
+  "required": [
+    "route",
+    "evidence_refs",
+    "uncertainties",
+    "reply",
+    "suggested_next_step",
+    "memory_update",
+    "follow_up_offer"
+  ],
+  "title": "PsychologyResult",
+  "type": "object"
+}
