@@ -49,3 +49,7 @@ print(len(batch.daily[0].metrics))  # 30
 `docs/schemas/` 下导出的四份对应 JSON Schema 便于前后端联调。
 JSON Schema 只能表达基本结构；跨字段的单位/指标一致性、时间关系、来源与状态约束，以 Python 模型校验为准。
 当前文件是字段提案与工程实现，仍需团队接缝确认，尚未接入 Agent、模拟生成器或真实硬件。
+
+## 模块 3 生成器
+
+本目录静态 JSON 仍为模块 1 样例。生成 30 日连贯数据请使用 `python -m app.wearables`，详见 [模拟器说明](../../docs/wearable-simulator.md)。`scenarios/catalog.json` 是独立评测情境，不能随设备数据发送给模型。

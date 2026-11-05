@@ -1,6 +1,6 @@
 # 可穿戴模拟指标与场景规格 v0.2
 
-日期：2026-11-04。状态：模块 1 的注册表与契约已实现；模拟器与真实设备尚未接入。
+日期：2026-11-04。状态：模块 1—3 的注册表、契约、内存服务与离线模拟器已实现，真实设备未接入。
 依据：用户要求参考现有产品，增加模拟指标。取代原先仅睡眠时长和步数、HRV 暂缓的模拟范围；实际硬件接入仍单独验证。
 关联：[开发方案](shenglei-development-plan.md)、[产品调研](shenglei-product-research.md)。
 
@@ -141,7 +141,7 @@ examples/wearable/scenarios/     # 虚构场景配置，可共享
 examples/wearable/README.md      # 复现命令、模拟说明、数据字典
 ```
 
-生成产物留在被忽略的 `data/mock-wearable/`，小型测试 fixtures 可在 tests/fixtures/ 下版本化。注册表及 Schema 已落地，结构样例见 [模块 1 样例](../examples/wearable/README.md)；生成器与情境目录待模块 3 开发。
+生成产物留在被忽略的 `data/mock-wearable/`，小型测试 fixtures 可在 tests/fixtures/ 下版本化。注册表及 Schema 已落地，结构样例见 [模块 1 样例](../examples/wearable/README.md)；生成器与情境目录已实现，操作和简化边界见 [模拟器说明](wearable-simulator.md)。
 
 建议上限：每日摘要批次最多 60 条；interval 每批最多 1000 条；episode/event 每批最多 200 条；导入文件不超过 4 MiB。超限明确拒绝；模型上下文仍服从现有字符预算。
 
