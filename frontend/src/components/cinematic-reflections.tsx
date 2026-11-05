@@ -5,6 +5,8 @@ import { motion, useInView } from "motion/react";
 import { useRef, useState } from "react";
 import { hypothesisKeys, hypothesisLabels, supportChoices, type ExperienceCard, type HypothesisKey, type Reflection, type SupportChoice } from "../lib/agent";
 import { WorldMedia } from "./world-media";
+import { CinematicArchiveControls } from "./cinematic-archive-controls";
+import type { JourneyController } from "./use-support-journey";
 import "./cinematic-reflections.css";
 
 const canvasVideo = "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260317_100335_dc625816-c3c1-4b00-b93e-4cb301cf5ea5.mp4";
@@ -73,6 +75,7 @@ export function CinematicCanvas({ draft, onOpenAgent }: { draft: Reflection | nu
                     <span>{layer.index} / 04</span>
                     <span>{draft ? reflectionStatus[draft.status] : "画布指引"}</span>
                     {draft?.hypothesisSource === "demo" && <span>· 演示来源</span>}
+                    {draft?.hypothesisSource === "fastapi" && <span>· 你的记录</span>}
                   </div>
                   <h2>{hypothesisLabels[active]}</h2>
                   <p tabIndex={draft ? 0 : undefined} aria-label={draft ? `${hypothesisLabels[active]}理解内容` : undefined}>{draft ? draft.hypotheses[active] || "你选择了留白。" : layer.hint}</p>
@@ -88,7 +91,7 @@ export function CinematicCanvas({ draft, onOpenAgent }: { draft: Reflection | nu
   );
 }
 
-export function CinematicArchive({ cards, onOpenAgent }: { cards: readonly ExperienceCard[]; onOpenAgent: () => void }) {
+export function CinematicArchive({ cards, onOpenAgent, journey }: { cards: readonly ExperienceCard[]; onOpenAgent: () => void; journey?: JourneyController }) {
   const [filter, setFilter] = useState<"all" | SupportChoice>("all");
   const cardHeading = useRef<HTMLHeadingElement>(null);
   const visibleCards = [...cards].filter((card) => filter === "all" || filter === card.choice)
@@ -134,7 +137,7 @@ export function CinematicArchive({ cards, onOpenAgent }: { cards: readonly Exper
             ))}
           </div>
         </header>
-        <p className="cr-feed-note" aria-live="polite">{visibleCards.length} 张经历卡 · 演示记录仅保留在当前页面，刷新后清空。</p>
+        <p className="cr-feed-note" aria-live="polite">{visibleCards.length} 张经历卡 · 仅在当前页面暂存，刷新后清空。{journey ? "本机旅程存档需在下方单独保存。" : ""}</p>
         {visibleCards.length ? (
           <div className="cr-archive-cards" key={filter}>
             {visibleCards.map((card) => {
@@ -147,7 +150,7 @@ export function CinematicArchive({ cards, onOpenAgent }: { cards: readonly Exper
                     <ChevronDown size={19} className="cr-card-chevron" />
                   </summary>
                   <div className="cr-card-details">
-                    <span className="cr-card-provenance">结构化理解来自演示草稿，已由你确认或修正。</span>
+                    <span className="cr-card-provenance">{card.source === "fastapi" ? "对话记录 · 用户确认。" : "演示来源。"}这张经历卡保留了你确认或修正的内容，以及当时的支持选择。</span>
                     <p>{card.action}</p>
                     <dl>{hypothesisKeys.map((key) => <div key={key}><dt>{hypothesisLabels[key]}</dt><dd>{card.hypotheses[key] || "留白"}</dd></div>)}</dl>
                   </div>
@@ -163,6 +166,7 @@ export function CinematicArchive({ cards, onOpenAgent }: { cards: readonly Exper
             <button type="button" className="cr-button cr-glass" onClick={cards.length ? () => setFilter("all") : onOpenAgent}>{cards.length ? "查看全部" : "前往拾光对话"}<ArrowUpRight size={16} /></button>
           </div>
         )}
+        {journey && <CinematicArchiveControls journey={journey} />}
       </div>
     </section>
   );

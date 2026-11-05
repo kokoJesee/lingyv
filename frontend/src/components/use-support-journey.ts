@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createSupportClient, SupportError } from "../lib/support-client";
+import { createSupportClient, SupportError, type SupportClient } from "../lib/support-client";
 import type { ArchiveInfo, Scope, SendSupportMessage, StateAnalysis, SupportHealth, SupportNotice, SupportResponse, SupportState, UnderstandingView, WearableCatalog, WearableProvider, WearableTrends } from "../lib/support-types";
 import { cancellableRun } from "./support-journey-state";
 
@@ -10,6 +10,59 @@ const fallbackSupport: SupportNotice = {
   review_status: "unreviewed", message: "你可以随时联系信任的人，或查找所在地的现实支持。", actions: ["联系信任的人", "查找所在地现实支持"], automatic_contact: false,
 };
 const uuid = () => crypto.randomUUID();
+
+/** Ended journeys remain viewable but no longer request active-session analysis. */
+export async function readActiveSignals(
+  client: Pick<SupportClient, "trends" | "analysis">,
+  state: SupportState | null,
+  at: string,
+  days: 7 | 14 | 30,
+) {
+  if (!state || state.session.status !== "ACTIVE") return null;
+  const id = state.session.session_id;
+  const [trends, analysis] = await Promise.all([
+    client.trends(id, { as_of: at, days }),
+    client.analysis(id, { as_of: at, scope: "local_analysis", timezone: "Asia/Shanghai" }),
+  ]);
+  if (trends.session_id !== id || analysis.session_id !== id
+    || trends.revision !== state.wearables.revision || analysis.evidence_revision !== state.wearables.revision) return null;
+  return { trends, analysis };
+}
+
+/** One explicit UI confirmation, with server-owned object versions and credentials. */
+export async function commitUnderstandingVersion(
+  client: Pick<SupportClient, "addReport" | "proposeUnderstanding" | "edit" | "confirm">,
+  sessionId: string,
+  text: string,
+  existing?: UnderstandingView,
+): Promise<UnderstandingView> {
+  const interpretation = text.trim();
+  if (!interpretation || interpretation.length > 2000) throw new Error("理解文字需为 1–2000 个字符。");
+  if (existing && !["proposed", "confirmed"].includes(existing.understanding.status)) throw new Error("旧理解已失效，请刷新后重新核对。");
+  const report = await client.addReport(sessionId, { operation_id: uuid(), content: interpretation });
+  const proposal = {
+    operation_id: uuid(), interpretation, origin: "user_report" as const,
+    evidence_refs: [{ kind: "user_report", source_id: report.report_id, revision: report.revision }],
+  };
+  const current = existing
+    ? await client.edit(sessionId, existing.understanding.understanding_id, { ...proposal, expected_revision: existing.understanding.revision })
+    : await client.proposeUnderstanding(sessionId, proposal);
+  const value = current.understanding;
+  if (value.status !== "proposed" || !current.confirmation_token || value.interpretation !== interpretation
+    || (existing && value.understanding_id !== existing.understanding.understanding_id)
+    || (existing && value.revision <= existing.understanding.revision)) {
+    throw new Error("后端返回的待确认理解与本次内容不一致，请刷新后核对。");
+  }
+  const confirmed = await client.confirm(sessionId, value.understanding_id, {
+    operation_id: uuid(), expected_revision: value.revision, confirmation_token: current.confirmation_token,
+  });
+  const result = confirmed.understanding;
+  if (result.understanding_id !== value.understanding_id || result.interpretation !== interpretation
+    || result.status !== "confirmed" || result.confirmed_revision !== result.revision || result.revision !== value.revision + 1) {
+    throw new Error("未收到这份理解的有效确认结果，请刷新当前版本。");
+  }
+  return confirmed;
+}
 
 export function useSupportJourney(active: boolean) {
   const [health, setHealth] = useState<SupportHealth | null>(null);
@@ -37,6 +90,7 @@ export function useSupportJourney(active: boolean) {
   const acting = useRef(false);
   const stateRef = useRef<SupportState | null>(null);
   const configured = useRef(false);
+  const opening = useRef<Promise<string | undefined> | null>(null);
 
   const fail = useCallback((issue: unknown) => {
     if (!mounted.current) return;
@@ -57,16 +111,20 @@ export function useSupportJourney(active: boolean) {
   }, []);
 
   const refreshSignals = useCallback(async (id = sid.current, at = asOf, days = range) => {
-    if (!id || acting.current) return;
+    if (!id || acting.current || stateRef.current?.session.session_id !== id || stateRef.current.session.status !== "ACTIVE") return;
     const ticket = ++signalReadTicket.current;
     const expectedRevision = stateRef.current?.wearables.revision;
-    const [nextTrends, nextAnalysis] = await Promise.all([
-      api.trends(id, { as_of: at, days }), api.analysis(id, { as_of: at, scope: "local_analysis", timezone: "Asia/Shanghai" }),
-    ]);
-    if (mounted.current && sid.current === id && ticket === signalReadTicket.current
-      && expectedRevision === stateRef.current?.wearables.revision
-      && nextTrends.revision === expectedRevision && nextAnalysis.evidence_revision === expectedRevision) {
-      setTrends(nextTrends); setAnalysis(nextAnalysis);
+    try {
+      const result = await readActiveSignals(api, stateRef.current, at, days);
+      if (result && mounted.current && sid.current === id && ticket === signalReadTicket.current
+        && stateRef.current?.session.status === "ACTIVE" && expectedRevision === stateRef.current.wearables.revision) {
+        setTrends(result.trends); setAnalysis(result.analysis);
+      }
+    } catch (issue) {
+      // A stale read rejected during end/revocation must not overwrite the
+      // successful lifecycle notice with an irrelevant analysis conflict.
+      if (mounted.current && sid.current === id && ticket === signalReadTicket.current
+        && stateRef.current?.session.status === "ACTIVE") throw issue;
     }
   }, [asOf, range]);
 
@@ -114,18 +172,46 @@ export function useSupportJourney(active: boolean) {
   useEffect(() => {
     if (!active || !state || action) return;
     setTrends(null); setAnalysis(null);
+    if (state.session.status !== "ACTIVE") { ++signalReadTicket.current; return; }
     void refreshSignals().catch(fail);
-  }, [active, action, state?.wearables.revision, state?.session.session_id, asOf, range, refreshSignals, fail]);
+  }, [active, action, state?.wearables.revision, state?.session.session_id, state?.session.status, asOf, range, refreshSignals, fail]);
 
-  const start = () => actionRun("开启旅程", async () => {
-    const h = await api.health(); setHealth(h);
-    if (!h.runtime.psychology_enabled) throw new Error("后端尚未开启支持流程，请设置 PSYCHOLOGY_ENABLED=true 后重启服务。");
-    if (sid.current && stateRef.current?.session.status === "ACTIVE") throw new Error("请先结束当前旅程，再开启新的旅程。");
-    const session = await api.createSession();
-    sid.current = session.session_id; setResponse(null); setTrends(null); setAnalysis(null); setLastAttempt(null); setFailedAttempt(false);
-    await refresh(session.session_id);
-    setNotice("旅程已开启。默认只在后端内存中保留；保存到本机需要单独同意。");
-  });
+  const ensureSession = (): Promise<string | undefined> => {
+    if (opening.current) return opening.current;
+    if (!mounted.current || acting.current || running.current) return Promise.resolve(undefined);
+    const task = actionRun("准备本次对话", async () => {
+      const h = await api.health();
+      if (!mounted.current) return;
+      setHealth(h);
+      if (!h.runtime.psychology_enabled) throw new Error("后端尚未开启支持流程，请设置 PSYCHOLOGY_ENABLED=true 后重启服务。");
+      let previousMissing = false;
+      if (sid.current) {
+        try {
+          const current = await refresh(sid.current);
+          if (!mounted.current) return;
+          if (current?.session.status === "ACTIVE") return current.session.session_id;
+          if (!current) return;
+        } catch (issue) {
+          if (!(issue instanceof SupportError) || issue.status !== 404 || issue.code !== "session_not_found") throw issue;
+          sid.current = null; stateRef.current = null; setState(null);
+          previousMissing = true;
+        }
+      }
+      const session = await api.createSession();
+      if (!mounted.current) return;
+      sid.current = session.session_id; setResponse(null); setTrends(null); setAnalysis(null); setLastAttempt(null); setFailedAttempt(false);
+      const next = await refresh(session.session_id);
+      if (!next) return;
+      setNotice(previousMissing
+        ? "上次未保存的后端会话已不存在。本次已开启新的对话；旧内容没有自动恢复。"
+        : "对话已准备好。默认只在后端内存中保留；保存到本机需要单独同意。");
+      return session.session_id;
+    });
+    opening.current = task;
+    void task.finally(() => { if (opening.current === task) opening.current = null; });
+    return task;
+  };
+  const start = ensureSession;
 
   async function send(body: SendSupportMessage) {
     const id = sid.current;
@@ -173,7 +259,14 @@ export function useSupportJourney(active: boolean) {
     await api.clear(id);
     running.current?.controller.abort(); running.current = null; setPending(false);
     setResponse(null); setLastAttempt(null); setFailedAttempt(false); setTrends(null); setAnalysis(null);
-    await refresh(id); setNotice("后端内存中的对话、理解、设备和授权已清空。磁盘存档仍保留，可在成长档案中单独删除。");
+    // The mutation already committed. A failed follow-up read must neither keep
+    // old content on screen nor turn a successful clear into a reported failure.
+    stateRef.current = null; setState(null);
+    const cleared = await refresh(id).catch((issue) => { fail(issue); return null; });
+    setNotice(cleared
+      ? "后端内存中的对话、理解、设备和授权已清空。磁盘存档仍保留，可在成长档案中单独删除。"
+      : "后端内容已清空，但当前状态暂时无法读取，请刷新后继续。磁盘存档仍保留。");
+    return true;
   });
 
   const end = () => actionRun("结束旅程", async () => {
@@ -223,6 +316,16 @@ export function useSupportJourney(active: boolean) {
     setNotice(decision === "confirm" ? "已确认当前版本。拾光将在后续对话中采用这份理解。" : "这份理解已拒绝，将不再用于后续支持。");
   });
 
+  const commitUnderstanding = (text: string, existing?: UnderstandingView) => actionRun("确认当前理解", async () => {
+    const id = sid.current;
+    if (!id) throw new Error("请先开始一次对话，再确认理解。");
+    const confirmed = await commitUnderstandingVersion(api, id, text, existing);
+    setResponse(null);
+    await refresh(id).catch(fail);
+    setNotice("已确认当前四栏内容。后续支持将采用这个版本。");
+    return confirmed;
+  });
+
   const save = () => actionRun("保存旅程", async () => {
     const id = sid.current; if (!id) return;
     const latest = await refresh(id); if (!latest) return;
@@ -257,7 +360,7 @@ export function useSupportJourney(active: boolean) {
   }, false);
 
   return { health, state, catalog, support, response, trends, analysis, archives, pending, action, error, notice, lastAttempt, failedAttempt, asOf, range,
-    setRange: (days: 7 | 14 | 30) => { ++signalReadTicket.current; setTrends(null); updateRange(days); }, start, refreshAll, send, stop, clear, end, simulate, consent, propose, edit, decide, save, load, removeArchive,
+    setRange: (days: 7 | 14 | 30) => { ++signalReadTicket.current; setTrends(null); updateRange(days); }, start, ensureSession, refreshAll, send, stop, clear, end, simulate, consent, propose, edit, decide, commitUnderstanding, save, load, removeArchive,
     retry: (same: boolean) => lastAttempt ? send(same ? lastAttempt : { ...lastAttempt, request_id: uuid() }) : Promise.resolve<SupportResponse | undefined>(undefined),
   };
 }
