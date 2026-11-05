@@ -55,7 +55,7 @@ class AgentOrchestrator:
                 return SendMessageResponse.model_validate(previous.result)
 
             self._active(record)
-            if len(record.operations) + len(record.draft_operations) >= self.settings.runtime_max_requests_per_session:
+            if len(record.operations) + len(record.draft_operations) + len(record.wearables.operations) >= self.settings.runtime_max_requests_per_session:
                 raise RuntimeFailure(
                     "request_limit_exceeded", "当前会话达到请求记录上限，请创建新会话。"
                 )
@@ -259,6 +259,7 @@ class AgentOrchestrator:
                 session.revision += 1
                 # 移除回复内容，保留编号墓碑，避免旧请求重新写入。
                 record.drafts.clear()
+                record.wearables.clear()
                 record.turn_sources.clear()
                 record.last_context = None
                 for operation in [*record.operations.values(), *record.draft_operations.values()]:
