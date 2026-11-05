@@ -19,6 +19,10 @@ class ImportWearables(WearableOperation):
     batch: WearableImportBatch
 
 
+class ReplaceSimulatedWearables(ImportWearables):
+    """Internal request for a generated mock batch; never a general record reset."""
+
+
 class SetWearableConsent(WearableOperation):
     provider: Text
     allowed_metrics: list[Text] = Field(max_length=30)

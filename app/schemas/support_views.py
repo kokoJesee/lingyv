@@ -4,7 +4,7 @@ from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from pydantic import AwareDatetime, Field, field_validator
+from pydantic import AwareDatetime, Field, StrictBool, field_validator
 
 from app.schemas.session import Session
 from app.schemas.understanding_service import UnderstandingView
@@ -26,6 +26,7 @@ class WearableOverview(ContractModel):
     revision: int
     record_count: int
     providers: list[ProviderOverview]
+    available_timezones: list[str] = Field(default_factory=list)
 
 
 class SupportStateView(ContractModel):
@@ -106,6 +107,7 @@ class SimulateWearablesRequest(WearableOperation):
     seed: int = Field(default=42, strict=True, ge=0, le=2**32-1)
     days: int = Field(default=21, strict=True, ge=1, le=30)
     timezone: str = 'Asia/Shanghai'
+    replace_existing: StrictBool = False
 
     @field_validator('timezone')
     @classmethod

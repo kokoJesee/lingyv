@@ -11,6 +11,7 @@ from app.schemas.support_views import (
     ProviderOverview, SupportStateView, TrendPoint, TrendSeries, TrendSource,
     WearableOverview, WearableTrends, TrendQuery,
 )
+from app.schemas.wearable_service import ReplaceSimulatedWearables
 from app.services.understanding_service import UnderstandingService
 from app.services.wearable_service import WearableService
 from app.wearables.metric_registry import METRIC_REGISTRY
@@ -68,17 +69,33 @@ class SupportViewService:
                 scopes=sorted(consent.scopes) if consent else [],
                 is_simulated=bool(rows) and all(r.is_simulated for r in rows),
             ))
+        # Discover only sources the user has allowed for local reading. Keep
+        # lifecycle polling non-blocking and avoid exposing stale source choices.
+        authorized_daily = [] if record.lifecycle_pending else [
+            row for row in self.wearables.snapshot(session_id, 'local_analysis').records
+            if row.record_type == 'daily'
+        ]
+        available_timezones = list(dict.fromkeys(
+            row.timezone for row in sorted(authorized_daily,
+                key=lambda row: (row.local_date, row.observed_end, row.timezone), reverse=True)
+        ))
         return SupportStateView(
             session=record.session.model_copy(deep=True), support_mode=record.support_mode,
             active_request_id=getattr(record, 'active_request_id', None),
             support_route=record.support_route, understandings=self.controls(session_id),
-            wearables=WearableOverview(revision=data.revision, record_count=len(data.records), providers=overview),
+            wearables=WearableOverview(revision=data.revision, record_count=len(data.records),
+                providers=overview, available_timezones=available_timezones),
         )
 
     async def simulate(self, session_id, request):
         # Generation only produces a batch. The existing service enforces revisions,
         # busy/lifecycle checks, idempotency, budgets and atomic import; no grant.
         self.sessions.require(session_id)
+        if request.replace_existing:
+            batch = MockWearableAdapter().fetch(request.query())
+            return await self.wearables.replace_simulated(session_id, ReplaceSimulatedWearables(
+                operation_id=request.operation_id, expected_revision=request.expected_revision, batch=batch,
+            ))
         return await MockWearableAdapter().import_into(
             self.wearables, session_id, request.query(),
             expected_revision=request.expected_revision, operation_id=request.operation_id,
@@ -92,8 +109,10 @@ class SupportViewService:
         zone = ZoneInfo(query.timezone)
         last = query.as_of.astimezone(zone).date() - timedelta(days=1)
         dates = [last - timedelta(days=query.days-index-1) for index in range(query.days)]
-        # Values follow measurement-local dates, never convert travel days silently.
+        # Each query selects one source timezone. Travel records in other zones
+        # remain available through their own query; never stitch their dates.
         daily = [r for r in snapshot.records if r.record_type == 'daily'
+                 and r.timezone == query.timezone
                  and dates[0] <= r.local_date <= last
                  and r.observed_end <= query.as_of and r.ingested_at <= query.as_of]
         permitted = {name for c in record.wearables.consents.values()
@@ -106,6 +125,7 @@ class SupportViewService:
                 continue
             rows = [(r, m) for r in daily for m in r.metrics if m.metric_id == metric_id]
             raw_has_metric = any(r.record_type == 'daily' and dates[0] <= r.local_date <= last
+                                 and r.timezone == query.timezone
                                  and r.observed_end <= query.as_of and r.ingested_at <= query.as_of
                                  and any(m.metric_id == metric_id for m in r.metrics)
                                  for r in record.wearables.records.values())

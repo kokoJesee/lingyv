@@ -131,10 +131,9 @@ def test_missing_readings_remain_null_not_zero(client):
     assert all(p['value'] is None and p['quality'] == 'incomplete' for p in steps['points'][-3:])
 
 
-@pytest.mark.parametrize('scenario', ['S04', 'S08'])
-def test_changed_timezone_or_device_is_not_stitched_into_one_curve(client, scenario):
+def test_changed_device_is_not_stitched_into_one_curve(client):
     _, base = open_session(client)
-    simulate(client, base, scenario=scenario)
+    simulate(client, base, scenario='S08')
     consent(client, base)
     item = series(trends(client, base).json(), 'sleep_duration_minutes')
     assert item['status'] == 'source_conflict' and item['source'] is None

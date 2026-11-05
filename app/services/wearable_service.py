@@ -5,7 +5,7 @@ Snapshots are data, not capabilities: validate their revision before downstream 
 """
 import hashlib
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -13,7 +13,7 @@ from app.agent.errors import RuntimeFailure
 from app.config.settings import get_settings
 from app.schemas.session import SessionStatus
 from app.schemas.workflow import StopReason, WorkflowPhase
-from app.schemas.wearable_service import ImportWearables, SetWearableConsent, DeleteWearableRecord
+from app.schemas.wearable_service import ImportWearables, ReplaceSimulatedWearables, SetWearableConsent, DeleteWearableRecord
 from app.services.session_service import SessionService, OperationRecord
 from app.services.wearable_state import Consent
 
@@ -36,6 +36,11 @@ class WearableService:
 
     async def import_records(self, session_id, request: ImportWearables):
         return await self._apply(session_id, 'import', request)
+
+    async def replace_simulated(self, session_id, request: ReplaceSimulatedWearables):
+        """Replace only this simulator's rows; preserve conversation and other sources."""
+        request = ReplaceSimulatedWearables.model_validate_json(request.model_dump_json())
+        return await self._apply(session_id, 'replace_mock', request)
 
     async def set_consent(self, session_id, request: SetWearableConsent):
         """Replace this provider's selection; empty scopes revoke all uses."""
@@ -113,6 +118,19 @@ class WearableService:
                         changed = bool(result['accepted'])
                         if changed:
                             state.records = records
+                    elif action == 'replace_mock':
+                        result, records, retired = self._prepare_simulated_replacement(state, request.batch)
+                        current = state.consents.get('mock')
+                        scopes = current.scopes & frozenset({'local_analysis'}) if current else frozenset()
+                        consent_changed = current is not None and current.scopes != scopes
+                        changed = records != state.records or consent_changed
+                        if changed:
+                            # Every validation above runs before any data or permission changes.
+                            state.records = records
+                            state.retired_ids.update(retired)
+                            if consent_changed:
+                                state.consents['mock'] = Consent(current.consent_id, current.revision + 1,
+                                    current.allowed_metrics, scopes, datetime.now(timezone.utc))
                     elif action == 'consent':
                         metrics, scopes = frozenset(request.allowed_metrics), frozenset(request.scopes)
                         current = state.consents.get(request.provider)
@@ -141,6 +159,22 @@ class WearableService:
         finally:
             if privacy_change:
                 record.lifecycle_pending -= 1
+
+    @staticmethod
+    def _prepare_simulated_replacement(state, batch):
+        incoming = batch.daily + batch.intervals + batch.sleeps + batch.workouts
+        old_mock = {identity: row for identity, row in state.records.items() if row.provider == 'mock'}
+        if (not incoming or any(row.provider != 'mock' or not row.is_simulated for row in incoming)
+                or any(not row.is_simulated for row in old_mock.values())):
+            raise RuntimeFailure('invalid_simulated_replacement', '只能替换生成器的模拟记录，其他来源不受影响。')
+        incoming_ids = {row.record_id for row in incoming}
+        # An identity retained by the new batch still obeys ordinary record versions.
+        kept = {identity: row for identity, row in state.records.items()
+                if row.provider != 'mock' or identity in incoming_ids}
+        result, records = WearableService._prepare_import(replace(state, records=kept), batch)
+        retired = set(old_mock) - set(records)
+        result['replaced'] = len(retired)
+        return result, records, retired
 
     @staticmethod
     def _prepare_import(state, batch):
