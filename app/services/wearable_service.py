@@ -98,7 +98,7 @@ class WearableService:
                 expands = action == 'consent' and (old is None or not frozenset(request.scopes).issubset(old.scopes) or not frozenset(request.allowed_metrics).issubset(old.allowed_metrics))
                 if record.session.status != SessionStatus.ACTIVE and (not privacy_change or expands):
                     raise RuntimeFailure('session_ended', '已结束会话不能新增设备数据或授权。')
-                at_limit = len(record.operations) + len(record.draft_operations) + len(state.operations) >= self.settings.runtime_max_requests_per_session
+                at_limit = len(record.operations) + len(record.draft_operations) + len(state.operations) + len(record.understandings.operations) >= self.settings.runtime_max_requests_per_session
                 if at_limit:
                     # Privacy operations must still be possible after ordinary budget exhaustion.
                     if not privacy_change:
@@ -130,6 +130,7 @@ class WearableService:
                         result = {'deleted': int(changed)}
                     if changed:
                         state.revision += 1
+                        record.understandings.invalidate(wearable=True)
                         record.session.revision += 1
                     result['revision'] = state.revision
                     operation.result = result

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from app.services.wearable_state import WearableState
+from app.services.understanding_state import UnderstandingState
 from app.agent.errors import RuntimeFailure
 from app.schemas.events import RuntimeEvent
 from app.schemas.draft import Draft
@@ -34,6 +35,7 @@ class SessionRecord:
     turn_sources: dict[int, list[DraftReference]] = field(default_factory=dict)
     last_context: ContextManifest | None = None
     wearables: WearableState = field(default_factory=WearableState)
+    understandings: UnderstandingState = field(default_factory=UnderstandingState)
 
 
 class SessionService:
