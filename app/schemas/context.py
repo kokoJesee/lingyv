@@ -2,7 +2,6 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from app.schemas.wearable import EvidenceReference
 
 
 class DraftReference(BaseModel):
@@ -10,17 +9,9 @@ class DraftReference(BaseModel):
     revision: int
 
 
-class TurnDependencies(BaseModel):
-    wearable_revision: int | None = None
-    understanding_refs: list[EvidenceReference] = Field(default_factory=list)
-    draft_refs: list[DraftReference] = Field(default_factory=list)
-
-
 class ContextSource(BaseModel):
-    kind: Literal["system_prompt", "history_message", "confirmed_draft", "current_input", "psychology_record"]
+    kind: Literal["system_prompt", "history_message", "confirmed_draft", "current_input"]
     model_message_index: int
-    source_id: str | None = None
-    evidence_type: str | None = None
     history_index: int | None = None
     role: str | None = None
     draft_id: UUID | None = None
@@ -37,7 +28,6 @@ class ContextManifest(BaseModel):
     character_count: int
     sources: list[ContextSource] = Field(default_factory=list)
     excluded_history_indices: list[int] = Field(default_factory=list)
-    business_dependencies: TurnDependencies | None = None
 
     def draft_references(self) -> list[DraftReference]:
         return [

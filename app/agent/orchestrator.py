@@ -2,18 +2,12 @@ import asyncio
 import hashlib
 import logging
 from time import perf_counter
-from dataclasses import asdict
-import json
 from uuid import UUID
 
 from app.agent.errors import RuntimeFailure
 from app.calls.scheduler import call_scope
 from app.agent.context import build_context
 from app.agent.events import emit
-from app.agent.support_context import prepare_support, commit_correction, prune_cached_results
-from app.psychology.adapter import PsychologyAdapter
-from app.psychology.policy import REVIEW_STATUS
-from app.schemas.context import TurnDependencies
 from app.agent.workflow import WorkflowEngine
 from app.config.settings import Settings, get_settings
 from app.llm.client import ChatModel
@@ -45,21 +39,8 @@ class AgentOrchestrator:
         self, session_id: UUID, request: SendMessageRequest, model: ChatModel,
     ) -> SendMessageResponse:
         record = self.sessions.require(session_id)
-        support = self.settings.psychology_enabled
-        fingerprint_content = request.content if not support else 'psychology.v1:' + json.dumps(
-            request.model_dump(mode='json', exclude={'request_id'}), ensure_ascii=False, sort_keys=True)
-        fingerprint = hashlib.sha256(fingerprint_content.encode("utf-8")).hexdigest()
+        fingerprint = hashlib.sha256(request.content.encode("utf-8")).hexdigest()
         async with record.lock:
-            if record.lifecycle_pending:
-                raise RuntimeFailure("session_busy", "会话生命周期操作进行中。")
-            if record.support_mode and not support:
-                raise RuntimeFailure("session_mode_conflict", "心理流程会话不能降级为普通聊天；请清空或新建会话。")
-            if request.correction_of is not None and not support:
-                raise RuntimeFailure("psychology_mode_required", "消息内纠正需要启用心理流程。")
-            if record.support_mode and record.session.status != SessionStatus.ACTIVE:
-                self._active(record)
-            if record.session.status == SessionStatus.ACTIVE:
-                prune_cached_results(record, self.sessions)
             previous = record.operations.get(request.request_id)
             if previous is not None:
                 if previous.fingerprint != fingerprint:
@@ -71,66 +52,44 @@ class AgentOrchestrator:
                     workflow_snapshot=previous.workflow,
                 )
                 if previous.error:
-                    error = RuntimeFailure(*previous.error)
-                    if previous.support_notice: error.support_notice = previous.support_notice
-                    raise error
+                    raise RuntimeFailure(*previous.error)
                 return SendMessageResponse.model_validate(previous.result)
 
             self._active(record)
-            if len(record.operations) + len(record.draft_operations) + len(record.wearables.operations) + len(record.understandings.operations) >= self.settings.runtime_max_requests_per_session:
+            if len(record.operations) + len(record.draft_operations) >= self.settings.runtime_max_requests_per_session:
                 raise RuntimeFailure(
                     "request_limit_exceeded", "当前会话达到请求记录上限，请创建新会话。"
                 )
-            # Support mode must not wait for an old engineering demo confirmation.
-            if support and record.session.workflow.kind == "demo" and record.session.workflow.phase == WorkflowPhase.WAITING_CONFIRMATION:
-                self.engine.cancel(record.session.workflow, StopReason.USER_CANCELLED)
-            # Active chat runs remain serialized by the same session lock.
+            # 忙碌或等待确认时拒绝新回合，不覆盖未完成流程。
             workflow = self.engine.start(record.session.workflow, "chat", "context")
             record.session.workflow = workflow
-            record.support_mode = record.support_mode or support
             record.cancel_reason = None
             operation = OperationRecord(fingerprint=fingerprint)
             record.operations[request.request_id] = operation
-            record.active_request_id = request.request_id
             started = perf_counter()
             emit(record, "run_started", request.request_id)
             try:
                 user_message = Message(role="user", content=request.content)
-                correction = None
-                psychology_response = None
-                dependencies = None
-                if support:
-                    builder, prepared, manifest, dependencies, correction = prepare_support(
-                        record, self.sessions, request, self.settings)
-                    self.engine.advance(workflow, "model_call")
-                    emit(record, "step_started", request.request_id)
-                    with call_scope(
-                        request.request_id, workflow.run_id,
-                        deadline=asyncio.get_running_loop().time() + self.settings.llm_timeout_seconds,
-                    ):
-                        record.active_task = asyncio.create_task(PsychologyAdapter(model, self.settings).evaluate(
-                            prepared.request, ensure_current=lambda: builder.validate_current(prepared),
-                            previous_route=record.support_route))
-                    psychology_response = await record.active_task
-                    builder.validate_current(prepared)
-                    reply = psychology_response.result.reply
-                else:
-                    bundle = build_context(
-                        record.session, list(record.drafts.values()), record.turn_sources,
-                        request.content, request.request_id, self.settings.runtime_max_context_chars,
+                bundle = build_context(
+                    record.session, list(record.drafts.values()), record.turn_sources,
+                    request.content, request.request_id, self.settings.runtime_max_context_chars,
+                )
+                context = bundle.messages
+                self.engine.advance(workflow, "model_call")
+                emit(record, "step_started", request.request_id)
+                with call_scope(
+                    request.request_id, workflow.run_id,
+                    deadline=asyncio.get_running_loop().time() + self.settings.llm_timeout_seconds,
+                ):
+                    record.active_task = asyncio.create_task(model.generate_reply(context))
+                try:
+                    reply = await asyncio.wait_for(
+                        record.active_task, timeout=self.settings.llm_timeout_seconds
                     )
-                    manifest = bundle.manifest
-                    self.engine.advance(workflow, "model_call")
-                    emit(record, "step_started", request.request_id)
-                    with call_scope(
-                        request.request_id, workflow.run_id,
-                        deadline=asyncio.get_running_loop().time() + self.settings.llm_timeout_seconds,
-                    ):
-                        record.active_task = asyncio.create_task(model.generate_reply(bundle.messages))
-                    try:
-                        reply = await asyncio.wait_for(record.active_task, timeout=self.settings.llm_timeout_seconds)
-                    except TimeoutError:
-                        raise LLMError("model_timeout", "模型回复超时，请稍后重试。", 504) from None
+                except TimeoutError:
+                    raise LLMError(
+                        "model_timeout", "模型回复超时，请稍后重试。", 504
+                    ) from None
                 if record.cancel_reason is not None:
                     raise RuntimeFailure("run_cancelled", "本轮调用已取消。")
                 self.engine.advance(workflow, "output_validation")
@@ -146,25 +105,18 @@ class AgentOrchestrator:
                     request_id=request.request_id, run_id=workflow.run_id,
                     revision=record.session.revision + 1,
                     workflow=completed,
-                    context_manifest=manifest.model_copy(deep=True),
-                    psychology=psychology_response,
-                    review_status=REVIEW_STATUS if support else None,
+                    context_manifest=bundle.manifest.model_copy(deep=True),
                 )
                 cached_result = response.model_dump(mode="json")
                 assistant_index = len(record.session.messages) + 1
-                commit_correction(record, correction)
                 record.session.messages.extend([user_message, assistant])
-                record.turn_sources[assistant_index] = dependencies.draft_refs if support else manifest.draft_references()
-                if support:
-                    record.business_turn_sources[assistant_index] = dependencies.model_copy(deep=True)
-                    operation.dependencies = dependencies.model_copy(deep=True)
-                    record.support_route = psychology_response.result.route
-                record.last_context = manifest.model_copy(deep=True)
+                record.turn_sources[assistant_index] = bundle.manifest.draft_references()
+                record.last_context = bundle.manifest.model_copy(deep=True)
                 logger.info(
                     'Context committed | request_id=%s | messages=%d | chars=%d | drafts=%d | excluded_replies=%d',
-                    request.request_id, manifest.model_message_count,
-                    manifest.character_count, len(manifest.draft_references()),
-                    len(manifest.excluded_history_indices),
+                    request.request_id, bundle.manifest.model_message_count,
+                    bundle.manifest.character_count, len(bundle.manifest.draft_references()),
+                    len(bundle.manifest.excluded_history_indices),
                 )
                 record.session.workflow = completed
                 record.session.revision += 1
@@ -190,7 +142,6 @@ class AgentOrchestrator:
                 raise safe from None
             finally:
                 record.active_task = None
-                record.active_request_id = None
 
     def _failure(self, record, operation, request_id, error, started):
         workflow = record.session.workflow
@@ -205,22 +156,15 @@ class AgentOrchestrator:
                 "invalid_model_response": StopReason.OUTPUT_INVALID,
                 "incomplete_model_response": StopReason.OUTPUT_INVALID,
                 "internal_error": StopReason.INTERNAL_ERROR,
-                "invalid_evidence_reference": StopReason.OUTPUT_INVALID,
-                "unsupported_safety_route": StopReason.OUTPUT_INVALID,
-                "route_transition_unreviewed": StopReason.OUTPUT_INVALID,
             }.get(error.code, StopReason.MODEL_ERROR)
             self.engine.fail(workflow, reason)
         operation.error = (error.code, error.message, error.status_code)
-        notice = getattr(error, 'support_notice', None)
-        operation.support_notice = asdict(notice) if notice is not None and not isinstance(notice, dict) else notice
         operation.workflow = workflow.model_copy(deep=True)
         record.session.revision += 1
         emit(record, "run_stopped", request_id, (perf_counter() - started) * 1000)
 
     async def start_demo(self, session_id: UUID) -> Session:
         record = self.sessions.require(session_id)
-        if self.settings.psychology_enabled or record.support_mode:
-            raise RuntimeFailure("demo_disabled", "心理流程不启用阻塞消息的工程演示确认。")
         async with record.lock:
             self._active(record)
             record.session.workflow = self.engine.start(
@@ -320,18 +264,11 @@ class AgentOrchestrator:
                 session.revision += 1
                 # 移除回复内容，保留编号墓碑，避免旧请求重新写入。
                 record.drafts.clear()
-                record.wearables.clear()
-                record.understandings.clear()
                 record.turn_sources.clear()
                 record.last_context = None
-                record.business_turn_sources.clear()
-                record.support_mode = False
-                record.support_route = None
                 for operation in [*record.operations.values(), *record.draft_operations.values()]:
                     operation.result = None
                     operation.workflow = None
-                    operation.support_notice = None
-                    operation.dependencies = None
                     operation.error = ("request_cleared", "该请求对应的内容已清空。", 409)
                 record.events.clear()
                 emit(record, "history_cleared")

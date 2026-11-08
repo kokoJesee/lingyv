@@ -12,6 +12,3 @@ data/
 
 reports/
 local.paths.json
-
-# Reproducible fictional wearable exports
-data/mock-wearable/

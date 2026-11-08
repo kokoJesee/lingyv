@@ -4,10 +4,6 @@ import { Activity, ArrowDown, ArrowUp, ArrowUpRight, AudioLines, CloudMoon, Hear
 import { motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { WorldMedia } from "./world-media";
-import type { JourneyController } from "./use-support-journey";
-import type { Scope, WearableProvider } from "../lib/support-types";
-import { availabilityNames, limitationText, metricName, metricText } from "./support-journey-state";
-import { signalAxis, signalGroup, signalGroups, signalPlot, signalQuality, signalReading, validSignalDays, type SignalGroup } from "./signals-data";
 import "./cinematic-signals.css";
 
 const media = {
@@ -45,7 +41,7 @@ function Reveal({ children, className, delay = 0 }: { children: ReactNode; class
   );
 }
 
-function SampleMetricChart() {
+function MetricChart() {
   const [metric, setMetric] = useState<Metric>("sleep");
   const [range, setRange] = useState<Range>(7);
   const [day, setDay] = useState(6);
@@ -117,118 +113,7 @@ function SampleMetricChart() {
   </div>;
 }
 
-function MetricChart({ journey }: { journey?: JourneyController }) {
-  return journey ? <ConnectedMetricChart journey={journey} /> : <SampleMetricChart />;
-}
-
-function ConnectedMetricChart({ journey }: { journey: JourneyController }) {
-  const [group, setGroup] = useState<SignalGroup>("sleep");
-  const [metric, setMetric] = useState("sleep_duration_minutes");
-  const [selection, setSelection] = useState<{ key: string; index: number } | null>(null);
-  const fill = useId();
-  const reduced = useReducedMotion();
-  const available = journey.catalog?.metrics.filter((item) => signalGroup(item.metric_id) === group) ?? [];
-  const series = journey.trends?.series.find((item) => item.metric_id === metric);
-  const timezone = journey.trends?.timezone ?? journey.timezone;
-  const timezones = journey.state?.wearables.available_timezones ?? [];
-  const localDisplay = journey.state?.wearables.providers.find((provider) => provider.is_simulated && !provider.scopes.includes("local_analysis"));
-  const plot = series ? signalPlot(series, timezone) : null;
-  const selectionKey = `${journey.state?.session.session_id}:${journey.state?.wearables.revision}:${metric}:${journey.timezone}:${journey.range}`;
-  const latestAvailable = series?.points.reduce((latest, item, i) => item.value !== null ? i : latest, -1) ?? -1;
-  const index = series ? selection?.key === selectionKey ? Math.min(selection.index, series.points.length - 1) : latestAvailable >= 0 ? latestAvailable : series.points.length - 1 : -1;
-  const point = series?.points[index];
-  const selected = plot?.points[index];
-  const reading = series ? signalReading(series, point, timezone) : { text: "—", unit: "", context: "" };
-  const timestamp = series?.value_type === "timestamp";
-  const status = series?.status;
-  const stateText = !journey.health ? journey.error ? "数据服务暂不可用" : "正在连接数据服务" : !journey.health.runtime.psychology_enabled ? "数据服务尚未启用" : !journey.state ? "请先在下方开启旅程" : !journey.state.wearables.record_count ? "尚未导入记录" : !series ? "正在读取当前用途的数据" : availabilityNames[series.status] ?? "当前记录不可用";
-
-  function chooseGroup(next: SignalGroup) {
-    setGroup(next);
-    const first = journey.catalog?.metrics.find((item) => signalGroup(item.metric_id) === next);
-    if (first) setMetric(first.metric_id);
-  }
-
-  return <div className="signals-chart" data-metric={group === "heart" ? "hrv" : group}>
-    <div className="signals-chart-options">
-      <div className="signals-metrics" role="group" aria-label="选择指标分组">
-        {signalGroups.map((item) => <button type="button" key={item.id} aria-pressed={group === item.id} disabled={!journey.catalog} onClick={() => chooseGroup(item.id)}>{item.label}</button>)}
-      </div>
-      <div className="signals-ranges" role="group" aria-label="趋势时间范围">
-        {([7, 14, 30] as const).map((length) => <button type="button" key={length} aria-pressed={journey.range === length} onClick={() => journey.setRange(length)}>{length} 天</button>)}
-      </div>
-    </div>
-    <label className="signals-metric-select"><span>查看指标</span><select aria-label="查看指标" value={metric} disabled={!available.length} onChange={(event) => setMetric(event.target.value)}>{available.length ? available.map((item) => <option value={item.metric_id} key={item.metric_id}>{metricName(item.metric_id)}</option>) : <option value={metric}>等待指标目录</option>}</select></label>
-    {timezones.length > 1 && <label className="signals-metric-select"><span>记录时区</span><select aria-label="记录时区" value={journey.timezone} onChange={(event) => journey.setTimezone(event.target.value)}>{timezones.map((zone) => <option value={zone} key={zone}>{zone === "Asia/Shanghai" ? "上海 · UTC+8" : zone === "Asia/Tokyo" ? "东京 · UTC+9" : zone}</option>)}</select></label>}
-    <div className="signals-reading" aria-live="polite" aria-atomic="true">
-      <span>{point ? `${point.date} · ${series?.source?.is_simulated ? "模拟读数" : "设备读数"}` : stateText}</span>
-      <strong>{reading.text} <small>{reading.unit}</small></strong>
-    </div>
-    <svg className="signals-plot" viewBox="0 0 492 122" role="img" aria-label={`${metricName(metric)}，${journey.range} 天授权趋势。缺失读数留空，可在下方查看单日。`}>
-      <defs><linearGradient id={fill} x1="0" x2="0" y1="0" y2="1"><stop stopColor="currentColor" stopOpacity=".27" /><stop offset="1" stopColor="currentColor" stopOpacity=".015" /></linearGradient></defs>
-      {[24, 68, 112].map((y) => <line key={y} x1="32" y1={y} x2="480" y2={y} className="signals-plot-guide" />)}
-      <text x="2" y="15">{plot?.segments.length ? signalAxis(plot.max, !!timestamp) : "—"}</text><text x="2" y="121">{plot?.segments.length ? signalAxis(plot.min, !!timestamp) : "—"}</text>
-      {plot?.segments.map((segment, segmentIndex) => <g key={`${metric}-${journey.range}-${segmentIndex}`}>
-        <polygon points={`${segment[0].x},112 ${segment.map((p) => `${p.x},${p.y}`).join(" ")} ${segment.at(-1)!.x},112`} fill={`url(#${fill})`} />
-        <motion.polyline points={segment.map((p) => `${p.x},${p.y}`).join(" ")} className="signals-plot-line" initial={reduced ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: reduced ? 0 : .65, ease }} />
-        {segment.length === 1 && <circle cx={segment[0].x} cy={segment[0].y!} r="3" className="signals-plot-dot" />}
-      </g>)}
-      {selected?.y !== null && selected?.y !== undefined && <><line x1={selected.x} x2={selected.x} y1={selected.y} y2="112" className="signals-plot-cross" /><circle cx={selected.x} cy={selected.y} r="10" className="signals-plot-halo" /><circle cx={selected.x} cy={selected.y} r="4.5" className="signals-plot-dot" /></>}
-    </svg>
-    <div className="signals-days" data-range={journey.range} role="group" aria-label="查看单日授权记录">
-      {series?.points.map((item, i) => { const display = signalReading(series, item, timezone); return <button type="button" key={item.date} aria-pressed={index === i} data-missing={plot?.points[i].value === null} aria-label={`${item.date}，${display.text} ${display.unit} ${display.context}`} onClick={() => setSelection({ key: selectionKey, index: i })}>{item.date.slice(-2)}</button>; })}
-    </div>
-    <p className="signals-chart-note">{point && reading.text === "—" ? `${signalQuality[point.quality] ?? "读数不可用"}。` : ""}{reading.context && `${reading.context}。`}{status !== "ready" ? `${stateText}。` : "同一来源的授权记录；缺测处断开，不补为零。"}{timestamp && "入睡与醒来时间按记录所在地时区展示，跨午夜的变化连续比较。"}{series?.source?.score_scale && ` 厂商量表范围 ${series.source.score_scale.minimum}–${series.source.score_scale.maximum}，分值不跨厂商比较。`}</p>
-    {timezones.length > 1 && <p className="signals-chart-note">当前按 {journey.timezone} 的记录查看；其他时区的日期留空，可切换查看。</p>}
-    {status === "not_authorized" && localDisplay && <button className="signals-button signals-outline" type="button" disabled={!!journey.action || journey.pending || journey.state?.session.status !== "ACTIVE"} onClick={() => void journey.consent(localDisplay, localDisplay.allowed_metrics.length ? localDisplay.allowed_metrics : localDisplay.available_metrics, [...localDisplay.scopes, "local_analysis"])}>允许本机展示模拟读数</button>}
-  </div>;
-}
-
-function ProviderSettings({ provider, journey }: { provider: WearableProvider; journey: JourneyController }) {
-  const [metrics, setMetrics] = useState(provider.allowed_metrics.length ? provider.allowed_metrics : provider.available_metrics);
-  const [scopes, setScopes] = useState<Scope[]>(provider.scopes);
-  const disabled = !!journey.action || journey.state?.session.status !== "ACTIVE";
-  return <div className="signals-provider-settings">
-    <p>{provider.is_simulated ? "模拟设备" : "设备来源"} · {provider.record_count} 条记录</p>
-    <label><input type="checkbox" disabled={disabled} checked={scopes.includes("local_analysis")} onChange={(e) => setScopes(e.target.checked ? [...scopes, "local_analysis"] : scopes.filter((s) => s !== "local_analysis"))} />允许本机展示与分析</label>
-    <label><input type="checkbox" disabled={disabled} checked={scopes.includes("model_context")} onChange={(e) => setScopes(e.target.checked ? [...scopes, "model_context"] : scopes.filter((s) => s !== "model_context"))} />允许必要设备观察用于支持对话</label>
-    <details><summary>选择使用的指标 · {metrics.length} 项</summary><div className="signals-settings-metrics">{provider.available_metrics.map((id) => <label key={id}><input type="checkbox" disabled={disabled} checked={metrics.includes(id)} onChange={(e) => setMetrics(e.target.checked ? [...metrics, id] : metrics.filter((m) => m !== id))} />{metricName(id)}</label>)}</div></details>
-    <div className="signals-settings-actions"><button className="signals-button signals-outline" type="button" disabled={disabled} onClick={() => void journey.consent(provider, metrics, scopes)}>保存用途选择</button><button className="signals-button signals-outline" type="button" disabled={disabled || !provider.scopes.length} onClick={() => void journey.consent(provider, [], [])}>撤回用途</button></div>
-  </div>;
-}
-
-function DataSettings({ journey }: { journey: JourneyController }) {
-  const [scenario, setScenario] = useState("S02");
-  const active = journey.state?.session.status === "ACTIVE";
-  const disabled = !!journey.action || journey.pending;
-  return <details className="signals-data-settings"><summary>数据与使用设置</summary>
-    <p>先选样本并导入，再允许本机展示模拟读数。用于支持对话需要另行选择。</p>
-    {!journey.health?.runtime.psychology_enabled && <p>数据服务尚未就绪，可刷新连接后重试。</p>}
-    <div className="signals-settings-actions">{!active && <button className="signals-button signals-outline" type="button" disabled={disabled || !journey.health?.runtime.psychology_enabled} onClick={() => void journey.start()}>开启本次旅程</button>}<button className="signals-button signals-outline" type="button" disabled={disabled} onClick={() => void journey.refreshAll()}>刷新连接</button></div>
-    <label className="signals-metric-select"><span>模拟样本</span><select aria-label="模拟样本" value={scenario} disabled={disabled || !active} onChange={(e) => setScenario(e.target.value)}>{(journey.catalog?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{item.label}</option>)}</select></label>
-    <button className="signals-button signals-outline" type="button" disabled={disabled || !active || !journey.catalog} onClick={() => void journey.simulate(scenario)}>{journey.state?.wearables.record_count ? "切换到所选样本" : "导入 21 天模拟记录"}</button>
-    {!!journey.state?.wearables.record_count && <p>选择后点击切换：替换模拟记录并保留对话，已允许的本机展示继续生效；用于对话需重新选择。</p>}
-    {journey.state?.wearables.providers.map((provider) => <ProviderSettings key={`${provider.provider}:${journey.state?.wearables.revision}`} provider={provider} journey={journey} />)}
-    {journey.action && <p role="status">{journey.action}…</p>}{journey.notice && <p role="status">{journey.notice}</p>}{journey.error && <p role="alert">{journey.error}</p>}
-  </details>;
-}
-
-function BaselineDetails({ journey }: { journey: JourneyController }) {
-  const metrics = journey.catalog?.metrics.filter((item) => item.usage === "core") ?? [];
-  return <details className="signals-baseline-details"><summary>与自己的基线比较</summary>
-    <p>比较此前 14 日与近期 3 日；只使用已允许本机分析且质量足够的记录。</p>
-    <div className="signals-baseline-list">{metrics.map((metric) => {
-      const item = journey.analysis?.observations.find((observation) => observation.metric_id === metric.metric_id);
-      const status = journey.analysis?.metric_statuses.find((entry) => entry.metric_id === metric.metric_id)?.status;
-      const baseline = item && metricText(item.metric_id, item.baseline_median, item.unit);
-      const recent = item && metricText(item.metric_id, item.recent_median, item.unit);
-      return <div key={metric.metric_id}><strong>{metricName(metric.metric_id)}</strong>{baseline && recent ? <p>基线 {baseline.text} → 近期 {recent.text} {recent.unit}</p> : <p>{availabilityNames[status ?? "no_data"] ?? "暂无可用分析"}</p>}</div>;
-    })}</div>
-    {journey.analysis?.limitations.map((value) => <p key={value}>{limitationText(value)}</p>)}
-  </details>;
-}
-
-export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => void; journey?: JourneyController }) {
+export function CinematicSignals({ onOpenAgent }: { onOpenAgent: () => void }) {
   const reduced = useReducedMotion();
   const introTitle = useRef<HTMLHeadingElement>(null);
   const chartTitle = useRef<HTMLHeadingElement>(null);
@@ -254,9 +139,9 @@ export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => 
           <p className="signals-eyebrow signals-rise">01 / LOVE STONE BODY SIGNALS</p>
           <h1 className="signals-display signals-rise" ref={introTitle} id="signals-title" tabIndex={-1}>A quieter way<br />to read your rhythm.</h1>
           <p className="signals-hero-description signals-rise"><strong>身心状态 · 身体节奏</strong><br />从睡眠和心跳的细小起伏里，多看见一点自己的日常。</p>
-          <div className="signals-rise signals-hero-action"><button className="signals-button signals-glass" type="button" onClick={() => moveTo(chartTitle.current)}>{journey ? "查看个人趋势" : "查看模拟趋势"} <ArrowDown size={16} aria-hidden="true" /></button></div>
+          <div className="signals-rise signals-hero-action"><button className="signals-button signals-glass" type="button" onClick={() => moveTo(chartTitle.current)}>查看模拟趋势 <ArrowDown size={16} aria-hidden="true" /></button></div>
         </div>
-        <div className="signals-hero-label"><span aria-hidden="true" /> {journey ? "按用途读取的观察" : "模拟数据"} <i aria-hidden="true" /> {journey?.state?.wearables.record_count ? "含模拟记录 · 无真实设备连接" : "无设备连接"}</div>
+        <div className="signals-hero-label"><span aria-hidden="true" /> 模拟数据 <i aria-hidden="true" /> 无设备连接</div>
       </section>
 
       <section className="signals-tagline" aria-labelledby="signals-tagline-title">
@@ -275,9 +160,8 @@ export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => 
               <p className="signals-eyebrow">03 / THE RHYTHM ATLAS</p>
             </div>
             <h2 ref={chartTitle} className="signals-display" id="signals-feature-title" tabIndex={-1}>Everyday rhythms.</h2>
-            <p className="signals-feature-description">{journey ? "按分组切换指标和时间范围，看看同一段日子里的不同起伏。" : "切换三种指标和时间范围，看看同一段日子里的不同起伏。"}</p>
-            <MetricChart journey={journey} />
-            {journey && <DataSettings journey={journey} />}
+            <p className="signals-feature-description">切换三种指标和时间范围，看看同一段日子里的不同起伏。</p>
+            <MetricChart />
           </div>
           <div className="signals-feature-film signals-cinematic">
             <WorldMedia src={media.feature} poster="/images/signals-feature.jpg" className="signals-media" />
@@ -297,23 +181,17 @@ export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => 
           <p className="signals-eyebrow">04 / KEEP THE CONTEXT</p>
           <h2 ref={statementTitle} className="signals-display" id="signals-statement-title" tabIndex={-1}>Signals are clues.<br />You give them context.</h2>
           <p className="signals-muted">身体信号可以陪你回顾一段日子。哪天发生了什么、当时感觉如何，仍由你自己描述。</p>
-          <p className="signals-summary-caption">{journey ? `已授权观察 · 最近 ${journey.range} 天` : `模拟样本 · 第 ${sampleDays} 天`}</p>
-          <div className="signals-summaries" role="group" aria-label={journey ? "最近可用授权读数与有效记录日" : "最后一天的模拟读数与样本范围"}>
-            {journey ? ["sleep_duration_minutes", "night_hrv_rmssd_ms", "resting_heart_rate_bpm"].map((metric) => {
-              const series = journey.trends?.series.find((item) => item.metric_id === metric);
-              const point = series?.status === "ready" ? [...series.points].reverse().find((item) => item.value !== null && item.quality === "valid") : undefined;
-              const reading = series ? signalReading(series, point, journey.trends?.timezone ?? "Asia/Shanghai") : { text: "—", unit: "" };
-              return <div className="signals-summary" key={metric}><p className="signals-summary-value">{reading.text}<small>{reading.unit}</small></p><span>{metricName(metric)}</span><span className="signals-summary-date">{point?.date ?? "暂无授权读数"}{point && series?.source?.is_simulated ? " · 模拟" : ""}</span></div>;
-            }) : metricKeys.map((key) => {
+          <p className="signals-summary-caption">模拟样本 · 第 {sampleDays} 天</p>
+          <div className="signals-summaries" role="group" aria-label="最后一天的模拟读数与样本范围">
+            {metricKeys.map((key) => {
               const sample = metrics[key];
               return <div className="signals-summary" key={key}>
                 <p className="signals-summary-value">{sample.values.at(-1)}<small>{sample.unit}</small></p>
                 <span>{sample.label} · 模拟</span>
               </div>;
             })}
-            <div className="signals-summary"><p className="signals-summary-value">{journey ? validSignalDays(journey.trends) : sampleDays}<small>天</small></p><span>{journey ? "有效记录日" : "固定模拟样本"}</span></div>
+            <div className="signals-summary"><p className="signals-summary-value">{sampleDays}<small>天</small></p><span>固定模拟样本</span></div>
           </div>
-          {journey && <BaselineDetails journey={journey} />}
           <button className="signals-button signals-glass" type="button" onClick={() => moveTo(chartTitle.current)}>回看逐日趋势 <ArrowUp size={15} aria-hidden="true" /></button>
         </Reveal>
       </section>
@@ -327,7 +205,7 @@ export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => 
           <p className="signals-muted">如果某一天的变化让你想起一件事，可以把感受写进对话。拾光会从你愿意分享的文字开始。</p>
           <div className="signals-actions">
             <button className="signals-button signals-glass" type="button" onClick={onOpenAgent}>和拾光聊聊 <ArrowUpRight size={16} aria-hidden="true" /></button>
-            <button className="signals-button signals-outline" type="button" onClick={() => moveTo(chartTitle.current)}>{journey ? "再看个人趋势" : "再看模拟趋势"}</button>
+            <button className="signals-button signals-outline" type="button" onClick={() => moveTo(chartTitle.current)}>再看模拟趋势</button>
           </div>
         </Reveal>
       </section>
@@ -337,12 +215,12 @@ export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => 
           <div><p className="signals-eyebrow">06 / LOVE STONE</p><p className="signals-footer-display">A rhythm<br />of your own.</p></div>
           <div className="signals-footer-links" role="group" aria-label="身心状态页内跳转">
             <button type="button" onClick={backToTop}>返回身心状态页首 <ArrowUp size={14} aria-hidden="true" /></button>
-            <button type="button" onClick={() => moveTo(chartTitle.current)}>{journey ? "查看个人趋势" : "查看模拟趋势"} <ArrowUpRight size={14} aria-hidden="true" /></button>
+            <button type="button" onClick={() => moveTo(chartTitle.current)}>查看模拟趋势 <ArrowUpRight size={14} aria-hidden="true" /></button>
             <button type="button" onClick={() => moveTo(statementTitle.current)}>读懂数据边界 <ArrowUpRight size={14} aria-hidden="true" /></button>
           </div>
           <div className="signals-footer-reflect"><p>用自己的话，给这一天留一点记录。</p><button className="signals-button signals-glass" type="button" onClick={onOpenAgent}>开始对话 <ArrowUpRight size={15} aria-hidden="true" /></button></div>
         </div>
-        <div className="signals-footer-base"><span>LoveStone</span><p>{journey ? "无真实设备连接 · 记录不用于诊断 · 只有单独允许的设备观察才用于对话" : "模拟数据 · 无设备连接 · 不用于诊断，也不会作为对话输入"}</p></div>
+        <div className="signals-footer-base"><span>LoveStone</span><p>模拟数据 · 无设备连接 · 不用于诊断，也不会作为对话输入</p></div>
       </footer>
     </div>
   );

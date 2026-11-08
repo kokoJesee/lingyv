@@ -2,8 +2,6 @@
 
 状态：proposal_pending_team_and_expert_review
 更新时间：2026-11-03
-
-实现增补（2026-11-04）：模块 6 的独立 Python Adapter、输入组装与工程检查现已实现，见 [适配器说明](psychology-adapter.md)。下文“拟议/尚未实现”描述的是原始接口草案交付状态；默认聊天 Runtime 仍未接入。路线和文案继续待专业审核。
 依据：心理队友提供的 psychology_contract.json v0.1.0。本文补充工程输入输出格式；心理路线、回应内容及案例预期仍需团队与相应专业负责人审核。
 
 ## 1. 这份说明给谁、怎么用
