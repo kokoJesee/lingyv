@@ -61,7 +61,7 @@ async def demo():
     sessions = SessionService()
     sid = sessions.create().session_id
     service = WearableService(sessions)
-    batch = json.loads(Path("examples/wearable/batch.json").read_text())
+    batch = json.loads(Path("examples/wearable/batch.json").read_text(encoding="utf-8"))
     result = await service.import_records(sid, ImportWearables(expected_revision=0, batch=batch))
     await service.set_consent(sid, SetWearableConsent(
         expected_revision=result["revision"], provider="mock",

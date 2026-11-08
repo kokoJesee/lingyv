@@ -157,7 +157,7 @@ def test_export_and_no_overwrite(tmp_path, capsys):
     args = ['--as-of', '2026-11-04T00:00:00+08:00', '--output', str(output), '--import-demo']
     assert main(args) == 0
     assert json.loads(capsys.readouterr().out)['import_receipt']['accepted'] == 408
-    batch = WearableImportBatch.model_validate_json((output/'batch.json').read_text())
+    batch = WearableImportBatch.model_validate_json((output/'batch.json').read_text(encoding='utf-8'))
     assert len(batch.daily) == 30
     assert (output/'evaluation-only.json').exists()
     with pytest.raises(SystemExit): main(args)
