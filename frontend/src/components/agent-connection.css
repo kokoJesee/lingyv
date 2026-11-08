@@ -1,0 +1,9 @@
+.agent-support-access { max-width: 570px; margin: 20px auto 0; color: #c8c5ce; text-align: left; font-size: 12px; }
+.agent-support-access summary { display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; list-style: none; }
+.agent-support-access summary::-webkit-details-marker { display: none; }
+.agent-support-access p, .agent-support-access li { font-size: 12px; line-height: 1.8; }
+.agent-support-access small { display: block; text-align: center; color: #aaa8b2; }
+.agent-history { margin: 16px 0; color: #c8c5ce; font-size: 12px; }
+.agent-history summary { cursor: pointer; }
+.agent-history p { white-space: pre-wrap; line-height: 1.8; overflow-wrap: anywhere; }
+.agent-intro-content > .agent-history { max-width: 570px; margin: 16px auto; text-align: left; }
