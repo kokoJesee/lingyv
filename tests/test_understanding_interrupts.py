@@ -112,7 +112,7 @@ def test_interrupting_edit_revalidates_wearable_reference_under_own_barrier():
     async def run():
         sessions, sid, service, _, _, _ = await setup()
         data = WearableService(sessions)
-        payload = json.loads((Path(__file__).parents[1]/'examples/wearable/batch.json').read_text(encoding='utf-8'))
+        payload = json.loads((Path(__file__).parents[1]/'examples/wearable/batch.json').read_text())
         daily = payload['daily'][0]
         daily['metrics'] = [m for m in daily['metrics'] if m['metric_id'] == 'steps']
         await data.import_records(sid, ImportWearables(expected_revision=0, batch={'daily':[daily]}))

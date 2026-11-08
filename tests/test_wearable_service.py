@@ -21,7 +21,7 @@ def setup():
 
 
 def incoming(revision=0):
-    batch = json.loads((Path(__file__).parents[1] / 'examples/wearable/batch.json').read_text(encoding='utf-8'))
+    batch = json.loads((Path(__file__).parents[1] / 'examples/wearable/batch.json').read_text())
     daily = batch['daily'][0]
     daily['metrics'] = [m for m in daily['metrics'] if m['metric_id'] == 'steps']
     return ImportWearables(expected_revision=revision, batch={'daily': [daily]})

@@ -19,7 +19,7 @@ AS_OF = '2026-11-04T00:00:00+08:00'
 
 
 def fixture(metric='sleep_duration_minutes', before=450, after=360):
-    example = json.loads((Path(__file__).parents[1]/'examples/wearable/batch.json').read_text(encoding='utf-8'))['daily'][0]
+    example = json.loads((Path(__file__).parents[1]/'examples/wearable/batch.json').read_text())['daily'][0]
     template = next(m for m in example['metrics'] if m['metric_id'] == metric)
     records = []
     zone = timezone(timedelta(hours=8))
@@ -203,7 +203,7 @@ def test_analysis_cli(tmp_path):
     from app.analysis_cli import main
     output = tmp_path/'analysis.json'
     assert main(['--as-of', AS_OF, '--output', str(output)]) == 0
-    value = json.loads(output.read_text(encoding='utf-8'))
+    value = json.loads(output.read_text())
     assert value['status'] == 'ready' and value['scope'] == 'local_analysis'
     assert len(value['observations']) == 9
     with pytest.raises(SystemExit): main(['--as-of', AS_OF, '--output', str(output)])

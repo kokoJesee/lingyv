@@ -22,7 +22,7 @@
 from pathlib import Path
 from app.schemas.wearable import WearableImportBatch
 batch = WearableImportBatch.model_validate_json(
-    Path("examples/wearable/batch.json").read_text(encoding="utf-8")
+    Path("examples/wearable/batch.json").read_text()
 )
 print(len(batch.daily[0].metrics))  # 30
 ```

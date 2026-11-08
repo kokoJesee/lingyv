@@ -45,7 +45,7 @@ def test_four_routes_echo_server_ids_and_do_not_write_memory(route):
 
 @pytest.mark.parametrize('case', ['routine_support','clarify_safety'])
 def test_original_contract_examples_still_parse(case):
-    data = json.loads((Path(__file__).parents[1]/f'docs/examples/psychology/{case}.json').read_text(encoding='utf-8'))
+    data = json.loads((Path(__file__).parents[1]/f'docs/examples/psychology/{case}.json').read_text())
     PsychologyRequest.model_validate(data['request'])
     PsychologyResponse.model_validate(data['expected_response'])
 
@@ -307,6 +307,6 @@ def test_builder_only_includes_current_confirmed_understanding():
 
 def test_result_schema_export_and_standalone_entry():
     path = Path(__file__).parents[1]/'docs/schemas/psychology-result.schema.json'
-    assert json.loads(path.read_text(encoding='utf-8')) == PsychologyResult.model_json_schema()
+    assert json.loads(path.read_text()) == PsychologyResult.model_json_schema()
     assert '未能完成' not in support_entry().message
     assert '未能完成' in PsychologyFailure('fixture_error','fixture').support_notice.message

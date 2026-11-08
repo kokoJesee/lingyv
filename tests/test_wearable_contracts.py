@@ -20,7 +20,7 @@ EXAMPLES = Path(__file__).resolve().parents[1] / 'examples' / 'wearable'
 
 
 def example(name):
-    return json.loads((EXAMPLES / f'{name}.json').read_text(encoding='utf-8'))
+    return json.loads((EXAMPLES / f'{name}.json').read_text())
 
 
 def metric(name='steps'):
@@ -39,7 +39,7 @@ def test_examples_roundtrip_and_schema_export(name, model):
 
 def test_registry_covers_exactly_documented_metrics_and_is_read_only():
     import re
-    spec = (EXAMPLES.parents[1] / 'docs' / 'shenglei-wearable-metrics.md').read_text(encoding='utf-8')
+    spec = (EXAMPLES.parents[1] / 'docs' / 'shenglei-wearable-metrics.md').read_text()
     documented = set(re.findall(r'^\| \d+ \| .*?`([^`]+)`', spec, re.M))
     assert set(METRIC_REGISTRY) == documented
     assert len(documented) == 30
@@ -264,7 +264,7 @@ def test_confirmation_binds_current_revision():
 ])
 def test_exported_schemas_stay_in_sync(name, model):
     path = EXAMPLES.parents[1] / 'docs' / 'schemas' / f'{name}.schema.json'
-    assert json.loads(path.read_text(encoding='utf-8')) == model.model_json_schema()
+    assert json.loads(path.read_text()) == model.model_json_schema()
 
 
 def test_partial_stages_cannot_exceed_total_sleep():
