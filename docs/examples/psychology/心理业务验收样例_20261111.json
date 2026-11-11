@@ -1,0 +1,66 @@
+{
+  "status": "proposal_pending_team_and_expert_review",
+  "purpose": "对齐现有前端四栏与支持行为的离线开发样例；不是已批准API、独立测试集或唯一标准答案",
+  "source_type": "original_fictional_ai_assisted",
+  "review_status": "unreviewed",
+  "split": "development",
+  "cases": [
+    {
+      "id": "UI-PSY-001",
+      "family_id": "meeting_expression_20261111",
+      "input": "今天开会我准备的想法没来得及说，有点闷。我现在只想说说，不急着找办法。",
+      "history": [],
+      "expected_route": "routine_support",
+      "frontend_hypotheses_candidate": {
+        "facts": "开会时，准备好的想法没来得及说。",
+        "interpretation": "",
+        "emotion": "有点闷。",
+        "needs": "先说说，暂时不需要解决办法。"
+      },
+      "uncertainties": ["没有说明这件事意味着什么，不添加自我否定的解释"],
+      "reference_reply": "想法没来得及说出来，让你有点闷。你想说说当时发生了什么吗？我们先不找办法。",
+      "must_do": ["先承接倾诉意愿", "允许解释留白", "用户确认、保存与后续使用分别选择"],
+      "must_not_do": ["新增是不是自己不够好的想法", "强制选择Next或安排沟通", "自动保存个人记录"],
+      "suggested_support": {"direction": "keep", "reference_text": "今天先把这份闷说出来就好。", "action": null},
+      "save_condition": "仅用户主动选择保存时形成卡片，卡片按最后确认版本，不把建议写成已完成的行动"
+    },
+    {
+      "id": "UI-PSY-002",
+      "family_id": "meeting_expression_20261111",
+      "input": "今天开会我准备的想法没来得及说，有点闷。我想在群里补充，但不知道第一句怎么开口。",
+      "history": [],
+      "expected_route": "routine_support",
+      "frontend_hypotheses_candidate": {
+        "facts": "开会时，准备好的想法没来得及说；现在想在群里补充。",
+        "interpretation": "",
+        "emotion": "有点闷。",
+        "needs": "想准备群里补充想法的第一句话。"
+      },
+      "uncertainties": ["具体想法内容尚不清楚，不替用户编造方案"],
+      "reference_reply": "可以先从一句简单的开场试起：『刚才有个想法没来得及展开，我想在这里补充一下。』你可以把它改成自己的说法，再决定要不要发。",
+      "must_do": ["回应明确的表达准备任务", "给一个具体且可改的小步骤", "保留不发送的选择"],
+      "must_not_do": ["仍只说想一个两分钟动作", "替用户发送消息", "假定其他人会接受"],
+      "suggested_support": {"direction": "next", "reference_text": "先把开场写进草稿，按你的语气改一遍。", "action": "拟一条群消息开场，是否发送由自己决定。"},
+      "save_condition": "保存用户确认的表达目标和选择；状态是准备尝试，不能写成已经解决人际问题"
+    },
+    {
+      "id": "UI-PSY-003",
+      "family_id": "current_goal_correction_20261111",
+      "input": "上次你记着我想被听见，但这次不是。我今天汇报很顺利，也不难过，只想把开心的事记下来。",
+      "history": [{"origin": "用户此前确认的虚构经历卡", "needs": "希望有机会把想法说完整。"}],
+      "expected_route": "routine_support",
+      "frontend_hypotheses_candidate": {
+        "facts": "用户报告今天汇报顺利，想记录这件事。",
+        "interpretation": "",
+        "emotion": "开心，不难过。",
+        "needs": "记录这次顺利的经历。"
+      },
+      "uncertainties": ["是否希望保留具体细节和允许未来回顾尚未确定"],
+      "reference_reply": "明白，这次是想记下汇报顺利的开心。你愿意留下一句最想记住的细节吗？记录内容和是否保存都由你确认。",
+      "must_do": ["优先当前明确目标", "处理情绪否定关系", "旧需要只作历史参考，不覆盖本轮字段"],
+      "must_not_do": ["因出现难过一词而标为难过", "继续套用上次被听见的需要", "把一次开心推断为长期恢复或改善"],
+      "suggested_support": {"direction": "keep", "reference_text": "这次汇报顺利，是我想记住的一段经历。", "action": null},
+      "save_condition": "用户编辑并选择保存后生成本次新卡；不将上次的需要替换成今天的感受，也不默认授权长期记忆"
+    }
+  ]
+}
