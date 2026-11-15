@@ -310,3 +310,23 @@ def test_result_schema_export_and_standalone_entry():
     assert json.loads(path.read_text()) == PsychologyResult.model_json_schema()
     assert '未能完成' not in support_entry().message
     assert '未能完成' in PsychologyFailure('fixture_error','fixture').support_notice.message
+
+
+def test_canvas_keeps_only_verbatim_current_user_quotes():
+    async def run():
+        req = request()
+        req.current_message.content = '最近比较焦虑。想找个人聊聊。'
+        payload = fixture_result('routine_support').model_dump()
+        payload['canvas_quotes'] = {
+            'emotion': '最近比较焦虑',
+            'needs': '想找个人聊聊',
+            'interpretation': '因为最近睡得太少',
+        }
+        response = await PsychologyAdapter(RawModel(json.dumps(payload))).evaluate(req)
+        assert response.result.canvas_quotes.model_dump() == {
+            'facts': None,
+            'interpretation': None,
+            'emotion': '最近比较焦虑',
+            'needs': '想找个人聊聊',
+        }
+    asyncio.run(run())

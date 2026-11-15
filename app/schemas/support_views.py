@@ -9,7 +9,7 @@ from pydantic import AwareDatetime, Field, StrictBool, field_validator
 from app.schemas.session import Session
 from app.schemas.understanding_service import UnderstandingView
 from app.schemas.wearable import ContractModel
-from app.schemas.wearable_service import WearableOperation
+from app.schemas.wearable_service import DemoSample, WearableOperation
 from app.wearables.base import MockQuery
 
 
@@ -22,10 +22,16 @@ class ProviderOverview(ContractModel):
     is_simulated: bool
 
 
+class DemoSampleOverview(DemoSample):
+    start_date: date | None
+    end_date: date | None
+
+
 class WearableOverview(ContractModel):
     revision: int
     record_count: int
     providers: list[ProviderOverview]
+    sample: DemoSampleOverview | None = None
     available_timezones: list[str] = Field(default_factory=list)
 
 
@@ -47,8 +53,8 @@ class TrendQuery(ContractModel):
     @field_validator('days')
     @classmethod
     def valid_days(cls, value):
-        if value not in (7, 14, 30):
-            raise ValueError('days must be 7, 14 or 30')
+        if value not in (7, 14, 21, 30):
+            raise ValueError('days must be 7, 14, 21 or 30')
         return value
 
     @field_validator('timezone')
@@ -97,7 +103,7 @@ class WearableTrends(ContractModel):
     scope: Literal['local_analysis'] = 'local_analysis'
     as_of: AwareDatetime
     timezone: str
-    days: Literal[7, 14, 30]
+    days: Literal[7, 14, 21, 30]
     series: list[TrendSeries]
 
 

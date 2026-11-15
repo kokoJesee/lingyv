@@ -8,10 +8,10 @@ from zoneinfo import ZoneInfo
 
 from app.agent.errors import RuntimeFailure
 from app.schemas.support_views import (
-    ProviderOverview, SupportStateView, TrendPoint, TrendSeries, TrendSource,
+    DemoSampleOverview, ProviderOverview, SupportStateView, TrendPoint, TrendSeries, TrendSource,
     WearableOverview, WearableTrends, TrendQuery,
 )
-from app.schemas.wearable_service import ReplaceSimulatedWearables
+from app.schemas.wearable_service import DemoSample, ReplaceSimulatedWearables
 from app.services.understanding_service import UnderstandingService
 from app.services.wearable_service import WearableService
 from app.wearables.metric_registry import METRIC_REGISTRY
@@ -26,8 +26,13 @@ def wearable_catalog():
         'metrics': [dict(metric_id=m.metric_id, unit=m.unit, value_type=m.value_type,
                          usage=m.usage, required_method=m.required_method)
                     for m in METRIC_REGISTRY.values()],
-        'scenarios': [dict(scenario_id=f'S{index:02}', label=f'模拟样本 {index:02}')
-                      for index in range(1, 11)],
+        'scenarios': [
+            dict(scenario_id=f'S{index:02}', label=f'模拟样本 {index:02} · {label}')
+            for index, label in enumerate((
+                '作息相对稳定', '近期睡眠缩短', '近期活动增加', '旅行与时区切换', '夜间清醒增加',
+                '设备读数变化', '部分记录缺测', '更换设备', '多项夜间读数变化', '稳定作息（独立样本）',
+            ), start=1)
+        ],
     }
 
 
@@ -79,12 +84,21 @@ class SupportViewService:
             row.timezone for row in sorted(authorized_daily,
                 key=lambda row: (row.local_date, row.observed_end, row.timezone), reverse=True)
         ))
+        sample = None
+        if data.sample:
+            dates = [row.local_date for row in data.records.values()
+                     if row.record_type == 'daily' and row.record_id in data.sample.record_ids]
+            sample = DemoSampleOverview(
+                **data.sample.model_dump(exclude={'record_ids'}),
+                start_date=min(dates, default=None), end_date=max(dates, default=None),
+            )
         return SupportStateView(
             session=record.session.model_copy(deep=True), support_mode=record.support_mode,
             active_request_id=getattr(record, 'active_request_id', None),
             support_route=record.support_route, understandings=self.controls(session_id),
             wearables=WearableOverview(revision=data.revision, record_count=len(data.records),
-                providers=overview, available_timezones=available_timezones),
+                providers=overview, available_timezones=available_timezones,
+                sample=sample),
         )
 
     async def simulate(self, session_id, request):
@@ -95,6 +109,8 @@ class SupportViewService:
             batch = MockWearableAdapter().fetch(request.query())
             return await self.wearables.replace_simulated(session_id, ReplaceSimulatedWearables(
                 operation_id=request.operation_id, expected_revision=request.expected_revision, batch=batch,
+                sample=DemoSample(sample_id=request.scenario_id, kind='simulation', as_of=request.as_of,
+                                  timezone=request.timezone),
             ))
         return await MockWearableAdapter().import_into(
             self.wearables, session_id, request.query(),
@@ -128,7 +144,8 @@ class SupportViewService:
                                  and r.timezone == query.timezone
                                  and r.observed_end <= query.as_of and r.ingested_at <= query.as_of
                                  and any(m.metric_id == metric_id for m in r.metrics)
-                                 for r in record.wearables.records.values())
+                                 for r in record.wearables.records.values()
+                                 if not record.wearables.sample or r.record_id in record.wearables.sample.record_ids)
             if not rows and raw_has_metric:
                 # Selection can fail on a derived metric's dependency permissions.
                 # Do not expose those records or pretend their values are missing.

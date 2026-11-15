@@ -20,6 +20,7 @@ class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1)
     request_id: UUID = Field(default_factory=uuid4)
     correction_of: CorrectionTarget | None = None
+    replay_context_revision: int | None = Field(default=None, strict=True, ge=0)
 
     @model_validator(mode="after")
     def correction_size(self):

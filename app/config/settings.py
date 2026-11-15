@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     psychology_demo_route: Literal['routine_support', 'clarify_safety', 'safety_support', 'urgent_real_world_help'] = 'routine_support'
     analysis_timezone: str = "Asia/Shanghai"
     lifesnaps_replay_csv: Path | None = None
+    lifesnaps_live_model_enabled: bool = False
 
     runtime_max_steps: int = Field(default=8, ge=1, le=100)
     runtime_max_context_chars: int = Field(default=48000, ge=1)
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
 
     @property
     def lifesnaps_replay_enabled(self) -> bool:
-        return bool(self.psychology_enabled and self.psychology_demo_mode
+        return bool(self.psychology_enabled and (self.psychology_demo_mode or self.lifesnaps_live_model_enabled)
                     and self.lifesnaps_replay_csv and self.lifesnaps_replay_csv.is_file())
 
     @property

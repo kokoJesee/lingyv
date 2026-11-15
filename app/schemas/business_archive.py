@@ -7,6 +7,7 @@ from app.schemas.wearable import (
     EvidenceReference,
 )
 from app.schemas.understanding import Understanding
+from app.schemas.wearable_service import SelectedDemoSample
 from app.schemas.psychology import Route
 from app.schemas.context import TurnDependencies
 
@@ -36,6 +37,7 @@ class SavedBusinessState(ContractModel):
     support_route: Route | None
     wearable_revision: int = Field(strict=True, ge=0)
     records: list[Record] = Field(max_length=2000)
+    wearable_sample: SelectedDemoSample | None = None
     retired_ids: list[str] = Field(max_length=10000)
     # Historical version metadata, not permissions to read devices after restore.
     consent_versions: dict[UUID, PositiveRevision]

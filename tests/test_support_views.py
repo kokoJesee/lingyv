@@ -242,3 +242,56 @@ def test_derived_reading_with_low_quality_dependency_is_hidden(client):
     assert item['points'][-1]['value'] is None
     assert item['points'][-1]['quality'] == 'quality_insufficient'
     assert all(p['value'] is not None for p in item['points'][:-1])
+
+
+def test_selected_sample_pins_date_range_and_excludes_other_imported_records(client):
+    _, base = open_session(client)
+    assert simulate(client, base, 'S02', replace_existing=True).status_code == 200
+    # A standard import may coexist with the chosen sample in the session without
+    # introducing duplicate days into either the chart or the analysis.
+    from app.wearables.base import MockQuery
+    from app.wearables.mock import MockWearableAdapter
+
+    other_batch = MockWearableAdapter().fetch(MockQuery(as_of=AS_OF, scenario_id='S03', seed=99))
+    imported = client.post(base+'/wearables/import', json={
+        'batch': other_batch.model_dump(mode='json'), 'expected_revision': 1,
+    })
+    assert imported.status_code == 200
+    assert consent(client, base, revision=2, scopes=['local_analysis', 'model_context']).status_code == 200
+    snapshot = client.get(base+'/support-state').json()['wearables']
+    assert snapshot['sample'] == {
+        'kind': 'simulation', 'sample_id': 'S02', 'as_of': AS_OF,
+        'timezone': 'Asia/Shanghai', 'start_date': '2026-10-15', 'end_date': '2026-11-04',
+    }
+    for days in (7, 14, 21, 30):
+        sleep = series(trends(client, base, days=days).json(), 'sleep_duration_minutes')
+        assert sleep['status'] == 'ready' and len(sleep['points']) == days
+        assert sleep['points'][-1]['date'] == '2026-11-04'
+        assert all(point['value'] is not None for point in sleep['points'][-min(days, 21):])
+    failed = simulate(client, base, 'S03', expected_revision=1, replace_existing=True)
+    assert failed.status_code == 409
+    assert client.get(base+'/support-state').json()['wearables'] == snapshot
+
+
+def test_standard_import_is_analyzable_and_a_rejected_batch_preserves_it(client):
+    from app.wearables.base import MockQuery
+    from app.wearables.mock import MockWearableAdapter
+
+    _, base = open_session(client)
+    batch = MockWearableAdapter().fetch(MockQuery(as_of=AS_OF, scenario_id='S02', seed=17))
+    payload = batch.model_dump(mode='json')
+    assert client.post(base+'/wearables/import', json={'batch': payload, 'expected_revision': 0}).status_code == 200
+    assert consent(client, base).status_code == 200
+    state_before = client.get(base+'/support-state').json()['wearables']
+    assert state_before['sample'] is None
+
+    analysis = client.post(base+'/analysis', json={'as_of': AS_OF}).json()
+    assert analysis['status'] == 'ready'
+    sleep = next(item for item in analysis['observations'] if item['metric_id'] == 'sleep_duration_minutes')
+    assert sleep['inquiry_candidate'] and sleep['delta'] < 0
+    assert series(trends(client, base, days=21).json(), 'sleep_duration_minutes')['status'] == 'ready'
+
+    payload['daily'][0]['metrics'][0]['value'] = 'invalid numeric measurement'
+    invalid = client.post(base+'/wearables/import', json={'batch': payload, 'expected_revision': 2})
+    assert invalid.status_code == 422
+    assert client.get(base+'/support-state').json()['wearables'] == state_before

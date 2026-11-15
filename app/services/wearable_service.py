@@ -13,7 +13,10 @@ from app.agent.errors import RuntimeFailure
 from app.config.settings import get_settings
 from app.schemas.session import SessionStatus
 from app.schemas.workflow import StopReason, WorkflowPhase
-from app.schemas.wearable_service import ImportWearables, ReplaceSimulatedWearables, SetWearableConsent, DeleteWearableRecord
+from app.schemas.wearable_service import (
+    DemoWearableImport, DeleteWearableRecord, ImportWearables, ReplaceSimulatedWearables,
+    SelectedDemoSample, SetWearableConsent,
+)
 from app.services.session_service import SessionService, OperationRecord
 from app.services.wearable_state import Consent
 from app.wearables.lifesnaps import PROVIDER as REPLAY_PROVIDER
@@ -38,7 +41,7 @@ class WearableService:
     async def import_records(self, session_id, request: ImportWearables):
         return await self._apply(session_id, 'import', request)
 
-    async def import_replay(self, session_id, request: ImportWearables):
+    async def import_replay(self, session_id, request: DemoWearableImport):
         return await self._apply(session_id, 'replay', request)
 
     async def replace_simulated(self, session_id, request: ReplaceSimulatedWearables):
@@ -117,6 +120,15 @@ class WearableService:
                     state.operations[request.operation_id] = operation
                 try:
                     self._check_revision(state, request.expected_revision)
+                    selection = None
+                    if action in ('replace_mock', 'replay') and getattr(request, 'sample', None):
+                        batch = request.batch
+                        selection = SelectedDemoSample(
+                            **request.sample.model_dump(),
+                            record_ids=frozenset(
+                                row.record_id for row in batch.daily + batch.intervals + batch.sleeps + batch.workouts
+                            ),
+                        )
                     if action in ('import', 'replace_mock') and any(
                         row.provider == REPLAY_PROVIDER for row in state.records.values()
                     ):
@@ -156,6 +168,9 @@ class WearableService:
                         if changed:
                             state.retired_ids.add(request.record_id)
                         result = {'deleted': int(changed)}
+                    if selection is not None and selection != state.sample:
+                        state.sample = selection
+                        changed = True
                     if changed:
                         state.revision += 1
                         record.understandings.invalidate(wearable=True)
@@ -227,6 +242,8 @@ class WearableService:
         def permitted(source, metric, visiting, budget):
             budget[0] -= 1
             if budget[0] < 0 or len(visiting) >= 64:
+                return False
+            if state.sample and source.record_id not in state.sample.record_ids:
                 return False
             consent = state.consents.get(source.provider)
             if not consent or scope not in consent.scopes or metric.metric_id not in consent.allowed_metrics:

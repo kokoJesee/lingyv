@@ -55,7 +55,7 @@ def _evidence_group(name):
     return 'other_night'
 
 
-def analyze_changes(snapshot, *, as_of, config=None, authorized_metrics=None):
+def analyze_changes(snapshot, *, as_of, config=None, authorized_metrics=None, metric_ids=CORE_METRICS):
     """Pure internal calculation on a trusted, already purpose-filtered snapshot.
 
     Does not grant permission or validate a client-supplied snapshot. Use
@@ -63,7 +63,7 @@ def analyze_changes(snapshot, *, as_of, config=None, authorized_metrics=None):
     """
     config = AnalysisConfig.model_validate_json((config or AnalysisConfig()).model_dump_json())
     as_of = offset_datetime(as_of)
-    allowed = set(CORE_METRICS if authorized_metrics is None else authorized_metrics)
+    allowed = set(metric_ids if authorized_metrics is None else authorized_metrics)
     zone = ZoneInfo(config.timezone)
     recent_end = as_of.astimezone(zone).date()-timedelta(days=1)
     recent_start = recent_end-timedelta(days=config.recent_days-1)
@@ -95,7 +95,7 @@ def analyze_changes(snapshot, *, as_of, config=None, authorized_metrics=None):
                     pending.append(ref.source_id)
         return [refs[key] for key in sorted(refs)], None
 
-    for name in CORE_METRICS:
+    for name in metric_ids:
         status = dict(metric_id=name, baseline_valid_days=0, recent_valid_days=0, excluded_days=0)
         if name not in allowed:
             statuses.append(MetricAvailability(**status, status='not_authorized'))
@@ -162,7 +162,7 @@ def analyze_changes(snapshot, *, as_of, config=None, authorized_metrics=None):
             measurement_site=metric.measurement_site, evidence_group=_evidence_group(name),
             inquiry_candidate=candidate, record_refs=refs))
         statuses.append(MetricAvailability(**status, status='ready'))
-    status = ('ready' if observations else 'not_authorized' if not allowed.intersection(CORE_METRICS)
+    status = ('ready' if observations else 'not_authorized' if not allowed.intersection(metric_ids)
               else 'source_conflict' if any(s.status == 'source_conflict' for s in statuses) else 'insufficient_data')
     # Include input contents and policy, not merely revision; IDs are reproducible and session-bound.
     fingerprint = json.dumps(dict(session=str(snapshot.session_id), revision=snapshot.revision, scope=snapshot.scope,

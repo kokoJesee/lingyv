@@ -321,3 +321,57 @@ def test_api_wearable_import_and_analysis(monkeypatch):
         assert analysis.status_code==200 and analysis.json()['status']=='ready'
         model=client.post(base+'/analysis',json={'as_of':'2026-11-05T00:00:00+08:00','scope':'model_context'})
         assert model.json()['status']=='not_authorized'
+
+
+def test_selected_demo_observations_use_sample_date_and_follow_switch_and_revocation():
+    from datetime import datetime
+    from app.schemas.support_views import SimulateWearablesRequest
+    from app.services.support_views import SupportViewService
+
+    async def run():
+        sessions, sid, agent = setup()
+        views = SupportViewService(sessions)
+        model = Model()
+        at = datetime.fromisoformat('2026-10-01T10:00:00+08:00')
+
+        async def select(scenario, version):
+            await views.simulate(sid, SimulateWearablesRequest(
+                as_of=at, scenario_id=scenario, days=21, expected_revision=version, replace_existing=True,
+            ))
+
+        async def grant(version, scopes):
+            await views.wearables.set_consent(sid, SetWearableConsent(
+                expected_revision=version, provider='mock', scopes=scopes, allowed_metrics=list(METRIC_REGISTRY),
+            ))
+
+        async def turn(text):
+            result = await agent.handle_message(sid, SendMessageRequest(content=text), model)
+            return result, [json.loads(item['content']) for item in model.requests[-1]['records']
+                            if item['evidence_type'] == 'device_observation']
+
+        await select('S02', 0)
+        await grant(1, ['local_analysis'])
+        assert not (await turn('我想说说备考的感受'))[1]
+        await grant(2, ['local_analysis', 'model_context'])
+        _, observations = await turn('睡眠有没有变化？')
+        assert len(observations) == 1
+        assert observations[0]['metric'] == 'sleep_duration_minutes'
+        assert observations[0]['recent_window']['end'] == '2026-09-30'
+        assert observations[0]['delta'] < 0 and observations[0]['is_simulated']
+
+        await select('S03', 3)
+        response, observations = await turn('这是另一组数据吗？')
+        assert not observations
+        assert 3 in response.context_manifest.excluded_history_indices
+        assert any(message['content'] == '睡眠有没有变化？' for message in model.requests[-1]['history'])
+        await grant(4, ['local_analysis', 'model_context'])
+        _, observations = await turn('这组的活动有什么变化？')
+        assert {item['metric'] for item in observations} == {'steps'}
+        assert observations[0]['delta'] > 0
+
+        await grant(5, ['local_analysis'])
+        response, observations = await turn('我想聊自己的感受')
+        assert not observations
+        assert 7 in response.context_manifest.excluded_history_indices
+
+    asyncio.run(run())

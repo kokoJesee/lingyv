@@ -7,7 +7,7 @@ import pytest
 from app import main
 from app.llm.client import get_chat_model
 from app.psychology.demo import ScriptedSupportModel
-from app.wearables.lifesnaps import CASES, COLUMNS, PROVIDER, SLEEP
+from app.wearables.lifesnaps import CASES, COLUMNS, PROVIDER, REPLAY_TREND_METRICS, SLEEP
 
 
 @pytest.fixture
@@ -18,7 +18,13 @@ def replay_csv(tmp_path, monkeypatch):
         writer.writeheader()
         for case in CASES:
             for day in range(1, 22):
-                writer.writerow({'case_id': case, 'day': day, 'sleep_minutes': 400 if day < 19 else 315})
+                writer.writerow({
+                    'case_id': case, 'day': day,
+                    'sleep_minutes': '' if case == 'LS04' and day >= 20 else 400 if day < 19 else 315,
+                    'resting_hr_bpm': 63 if day < 19 else 66,
+                    'minutes_to_fall_asleep': 0, 'steps': 5000, 'sedentary_minutes': 450,
+                    'sleep_respiration_breaths_per_min': 14, 'spo2_pct': 97,
+                })
     monkeypatch.setenv('PSYCHOLOGY_ENABLED', 'true')
     monkeypatch.setenv('LIFESNAPS_REPLAY_CSV', str(path))
     return path
@@ -70,3 +76,52 @@ def test_replay_connects_trends_and_local_dialogue(client, monkeypatch, replay_c
     response = turn('可以继续吗？')
     assert response.json()['detail']['code'] == 'replay_local_only'
     assert not recording_model.calls
+
+
+@pytest.mark.parametrize('case_id', ['LS01', 'LS04'])
+def test_live_replay_requires_current_revision_and_sends_only_selected_observations(client, monkeypatch, replay_csv, case_id):
+    import json
+    from app.psychology.mock import fixture_result
+
+    captured = []
+
+    class CapturingModel:
+        async def generate_structured(self, *, system_prompt, request_json):
+            captured.append(json.loads(request_json))
+            return fixture_result('routine_support').model_dump_json()
+
+    monkeypatch.setenv('PSYCHOLOGY_DEMO_MODE', 'false')
+    monkeypatch.setenv('LIFESNAPS_LIVE_MODEL_ENABLED', 'true')
+    monkeypatch.setitem(main.app.dependency_overrides, get_chat_model, CapturingModel)
+    base = '/sessions/' + client.post('/sessions').json()['session_id']
+    as_of = datetime.now(timezone.utc).isoformat()
+
+    assert client.post(base+'/wearables/replay', json={
+        'case_id': case_id, 'expected_revision': 0, 'as_of': as_of,
+    }).status_code == 200
+    grant = client.post(base+'/wearables/consent', json={
+        'expected_revision': 1, 'provider': PROVIDER, 'allowed_metrics': list(COLUMNS),
+        'scopes': ['local_analysis', 'model_context'],
+    })
+    rev = grant.json()['revision']
+    assert grant.status_code == 200
+    for consent in ({}, {'replay_context_revision': rev - 1}):
+        result = client.post(base+'/messages', json={'content': '虚构对话', **consent})
+        assert result.status_code == 409
+    assert not captured
+
+    result = client.post(base+'/messages', json={'content': '静息心率怎么样？', 'replay_context_revision': rev})
+    assert result.status_code == 200
+    records = captured[0]['records']
+    summaries = {summary['metric']: summary for summary in (json.loads(item['content']) for item in records)}
+    assert set(summaries) == set(REPLAY_TREND_METRICS)
+    assert all(item['evidence_type'] == 'device_observation' for item in records)
+    heart = summaries['resting_heart_rate_bpm']
+    assert (heart['baseline'], heart['recent'], heart['delta']) == (63, 66, 3)
+    assert not heart['inquiry_candidate']
+    if case_id == 'LS01':
+        assert summaries[SLEEP]['delta'] == -85
+    else:
+        assert summaries[SLEEP]['comparison_available'] is False
+        assert summaries[SLEEP]['recent_valid_days'] == 1 and 'delta' not in summaries[SLEEP]
+    assert f'{case_id}-day' not in json.dumps(captured[0]) and 'record_refs' not in summaries[SLEEP]

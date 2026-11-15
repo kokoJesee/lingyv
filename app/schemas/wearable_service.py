@@ -2,7 +2,7 @@
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import Field, field_validator
+from pydantic import AwareDatetime, Field, field_validator
 
 from app.schemas.wearable import ContractModel, Text, WearableImportBatch
 from app.wearables.metric_registry import get_metric
@@ -19,7 +19,23 @@ class ImportWearables(WearableOperation):
     batch: WearableImportBatch
 
 
-class ReplaceSimulatedWearables(ImportWearables):
+class DemoSample(ContractModel):
+    sample_id: Text
+    kind: Literal['simulation', 'replay']
+    as_of: AwareDatetime
+    timezone: Text
+
+
+class SelectedDemoSample(DemoSample):
+    record_ids: frozenset[Text] = Field(min_length=1, max_length=2000)
+
+
+class DemoWearableImport(ImportWearables):
+    """Internal request for selecting a generated or replayed demo sample."""
+    sample: DemoSample | None = None
+
+
+class ReplaceSimulatedWearables(DemoWearableImport):
     """Internal request for a generated mock batch; never a general record reset."""
 
 

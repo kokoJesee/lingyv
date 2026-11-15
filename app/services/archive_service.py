@@ -66,6 +66,7 @@ class ArchiveService:
                     business = {
                         'support_mode': record.support_mode, 'support_route': record.support_route,
                         'wearable_revision': record.wearables.revision,
+                        'wearable_sample': record.wearables.sample,
                         'records': list(record.wearables.records.values()),
                         'retired_ids': sorted(record.wearables.retired_ids),
                         'consent_versions': {c.consent_id: c.revision for c in record.wearables.consents.values()},
@@ -135,6 +136,7 @@ class ArchiveService:
             record.support_mode = saved_business.support_mode or bool(session.messages)
             record.support_route = saved_business.support_route
             record.wearables.revision = saved_business.wearable_revision + 1
+            record.wearables.sample = saved_business.wearable_sample
             record.wearables.records = {r.record_id: r.model_copy(deep=True) for r in saved_business.records}
             record.wearables.retired_ids = set(saved_business.retired_ids)
             # Restoring saved data grants no local-analysis or model-context permission.

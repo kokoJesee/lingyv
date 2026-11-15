@@ -31,11 +31,11 @@ class ScriptedSupportModel:
                     if info['metric'] == 'sleep_duration_minutes':
                         minutes = abs(info['delta'])
                         change = '短' if info['delta'] < 0 else '长'
-                        question = f'最近三天的睡眠中位数比你此前的基线{change}了 {minutes:g} 分钟。你有感觉到这几晚的作息有什么变化吗？'
+                        question = f'这组回放最近三天的睡眠时长中位数比前两周{change}了 {minutes:g} 分钟。你想聊聊这段时间的感受吗？'
                     elif info['metric'] == 'steps':
                         steps = abs(info['delta'])
                         change = '多' if info['delta'] > 0 else '少'
-                        question = f'最近三天的步数中位数比你此前的基线{change}了 {steps:,g} 步。这几天的活动安排有什么变化吗？'
+                        question = f'这组回放最近三天的步数中位数比前两周{change}了 {steps:,g} 步。这几天你想聊些什么？'
                     else:
                         continue
                     asked = any(message.role == 'assistant' and question in message.content for message in request.history)

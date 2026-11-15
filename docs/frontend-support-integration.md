@@ -7,7 +7,7 @@
 无需真实 Key 的工程演示。在仓库根目录的终端 1 启动后端：
 
 ```bash
-PSYCHOLOGY_ENABLED=true PSYCHOLOGY_DEMO_MODE=true ASR_PROVIDER=disabled .venv/bin/python -B -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+PSYCHOLOGY_ENABLED=true PSYCHOLOGY_DEMO_MODE=true ASR_PROVIDER=disabled LIFESNAPS_REPLAY_CSV=reports/lifesnaps-v4/selected-wearable-daily.csv .venv/bin/python -B -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 另开终端 2，在仓库根目录启动前端：
@@ -22,7 +22,7 @@ Windows PowerShell 可先设置 `$env:PSYCHOLOGY_ENABLED="true"`、`$env:PSYCHOL
 
 固定脚本调用真实的后端授权、分析、理解服务与原子提交，但回复不是实时模型推断。脚本展示当前输入、按输入优先顺序选取的一条当前确认内容，以及实际获准进入模型的设备观察组数；不会从文字分类风险。确认内容优先使用理解条目，最近更新的已确认理解在前；通用草稿排在理解之后，没有理解时遵循草稿输入顺序，不声称它是跨类型按时间最新的记录。固定路线只由服务端 PSYCHOLOGY_DEMO_ROUTE 配置，默认 routine_support；其余路线仅供受控工程测试。
 
-真实模型联调须显式设置 PSYCHOLOGY_DEMO_MODE=false 并配置本地模型凭据。页面按实际能力标注模拟回应或未经专业审核的回应，不提供技术模式切换，也不把连接失败替换为模拟成功。当前验收只用虚构内容和固定脚本，没有真实模型调用。
+真实模型联调须显式设置 PSYCHOLOGY_DEMO_MODE=false 并配置本地模型凭据。页面按实际能力标注模拟回应或未经专业审核的回应，不提供技术模式切换，也不把连接失败替换为模拟成功。LifeSnaps 默认走本机固定脚本。若要在同一个页面使用模型 API 并结合选中的 LifeSnaps 样本，启动时设置 `PSYCHOLOGY_ENABLED=true PSYCHOLOGY_DEMO_MODE=false LIFESNAPS_LIVE_MODEL_ENABLED=true`，保留 `LIFESNAPS_REPLAY_CSV`。选样后到拾光对话，在发送前确认当前样本的变化摘要可以用于本轮。API 校验 `replay_context_revision` 是否对应当前选样和用途版本。模型只接收通过分析条件的摘要，不接收原始日记录或自评表。真实模型验证使用合成穿戴数据和虚构输入。
 
 未配置前端后端地址时保留原本地演示；配置地址后，读取 `/health`：心理流程启用则使用持续会话，否则沿用一次普通聊天。服务不可用时显示连接错误。配置属于启动环境，不是用户页面选项。
 
@@ -32,8 +32,8 @@ Windows PowerShell 可先设置 `$env:PSYCHOLOGY_ENABLED="true"`、`$env:PSYCHOL
 - 一段旅程保持一个 session_id。代理不会在每条消息后新建/清空/结束。刷新页面不会自动删除后端内存；进程重启会丢失未保存的会话。
 - 请求编号由调用端持有：不确定的网络结果用同一编号取回；用户明确新尝试才换编号。停止先校验 active_request_id，再按本轮 run_id 调 cancel。断开网络不等于后端收到取消。
 - 代理保留 psychology.result、review_status、workflow、context_manifest 及受控错误码/support_notice；风险路线控制支持呈现，独立现实支持入口不依赖画布确认。
-- 原四栏继续显示事实、解释、情绪和需要；尚无正式四栏推断时，只以用户原话填事实，其余留白。用户修改并确认后，通过既有理解服务绑定当前版本和确认令牌，下一轮使用新内容；不会从回复文字猜测心理字段。
-- 原身心页六段结构和图表保留：30 指标分组、7/14/30 日、单日读数；「数据与使用设置」折叠在原图表卡片内，九项核心基线折叠在原摘要区域。连接后端但无数据/未授权时不回退到旧样例。
+- 四栏显示事实、解释、情绪和需要。模型可用 `canvas_quotes` 逐栏摘录本轮用户原话，由后端校验原文出处。未明确表达的栏位留空。用户修改并确认后，通过既有理解服务绑定当前版本和确认令牌，下一轮使用确认后的内容。
+- 原身心页六段结构和图表保留：30 指标分组、7/14/21 日、单日读数。样本选择器和折叠的「数据使用设置」位于趋势卡片内，九项核心基线折叠在原摘要区域。连接后端但无数据/未授权时不回退到旧样例。
 - 成长档案的经历卡只在本页内存暂存；「本机旅程存档」另经勾选保存后端对话、自述、理解与设备记录到 v2 明文 SQLite。恢复旅程不会保存或重建经历卡；设备用途需重新选择。刷新、清空旅程和删除磁盘是不同操作。
 
 ## 新增读取接口
@@ -41,14 +41,20 @@ Windows PowerShell 可先设置 `$env:PSYCHOLOGY_ENABLED="true"`、`$env:PSYCHOL
 | 接口 | 结果 |
 |---|---|
 | GET /wearables/catalog | 指标 ID/单位/方法与公开模拟样本编号，不含隐藏情境答案 |
-| GET /sessions/{id}/support-state | session、active_request_id、支持路线、有效理解、设备版本与用途；available_timezones 仅列本机分析已授权的记录时区，最新优先 |
+| GET /sessions/{id}/support-state | session、active_request_id、支持路线、有效理解、设备版本、用途和当前演示样本的编号、分析截止时间和覆盖日期。available_timezones 仅列本机分析已授权的记录时区，最新优先 |
 | GET /sessions/{id}/understandings/control | 可发现的有效待确认/已确认理解 |
 | POST /sessions/{id}/wearables/simulate | 按 scenario_id/seed/as_of/days 生成；replace_existing=true 时原子替换 mock 模拟记录，保留对话及其他设备来源 |
-| GET /sessions/{id}/wearables/trends | local_analysis 用途过滤，按 timezone 选择记录来源，7/14/30 日序列，缺失保持 null，其他冲突来源不拼接 |
+| GET /sessions/{id}/wearables/trends | local_analysis 用途过滤，按 timezone 选择记录来源，7/14/21/30 日序列，缺失保持 null，其他冲突来源不拼接 |
 
 用途授权沿用 /wearables/consent，分别选择 local_analysis 和 model_context；导入不自动授权。/analysis 提供基线/近期中位数和不足原因。睡眠分钟换算小时，HRV 明确 RMSSD；入睡/醒来按趋势时区显示钟点并连续比较跨午夜变化。缺测保留空值、来源冲突不拼接。读取状态不等待模型锁，便于轮询和取消。
 
-样本选择器导入后仍可用，选择后点击「切换到所选样本」。替换保留原本的本机分析授权和指标范围，撤回用于对话的授权，使旧设备依赖失效；失败保留旧数据。未授权时可明确点击「允许本机展示模拟读数」。S04 默认查看最新的东京记录，可切换上海；默认选中当前时区最新有值的日期，其他时区日期留空。跨时区基线仍遵守原分析器的来源隔离，不拼出整段个人基线。
+正式数据演示使用四组 LifeSnaps v4 选样（LS01–LS04）。在启动本机固定脚本的同一条命令中设置 `LIFESNAPS_REPLAY_CSV=reports/lifesnaps-v4/selected-wearable-daily.csv`。打开「身心状态」，在「选择样本数据」选一组后直接载入 21 天趋势，并用于本机演示对话。切换时开启新旅程。「变量」只列出当前图表中有读数的指标。合成样本选择器供真实模型联调使用。
+
+模拟样本选择器导入后仍可用，选择后点击「切换到所选样本」。替换保留原本的本机分析授权和指标范围，撤回用于对话的授权，使旧设备依赖失效；失败保留旧数据。未授权时可明确点击「允许本机展示模拟读数」。S04 默认查看最新的东京记录，可切换上海；默认选中当前时区最新有值的日期，其他时区日期留空。跨时区基线仍遵守原分析器的来源隔离，不拼出整段个人基线。
+
+所选样本的记录集、分析截止时间和基线时区随会话保存。趋势和对话读取同一版本的授权记录，图表切换窗口或旅行记录时区不会改变该样本的基线窗口。LifeSnaps 对话可读取图表六项指标中已授权的近况与基线摘要。变化阈值仅用于标记潜在的对话线索。图表有读数但不足以比较时，对话只得到覆盖情况。相同数据版本的过期回复与撤回后的读取由现有生命周期检查处理。
+
+未来可在新的会话向 `POST /sessions/{id}/wearables/import` 提交 `WearableImportBatch` 标准 JSON。该接口导入记录，随后仍须单独设置用途。已有演示样本的会话继续以当时选中的样本为分析范围。CSV 和厂商导出格式可在入口做转换。
 
 ## 人工验收流程
 

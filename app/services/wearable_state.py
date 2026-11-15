@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.schemas.wearable import RecordBase
+from app.schemas.wearable_service import SelectedDemoSample
 
 
 @dataclass
@@ -18,6 +19,7 @@ class Consent:
 @dataclass
 class WearableState:
     revision: int = 0
+    sample: SelectedDemoSample | None = None
     records: dict[str, RecordBase] = field(default_factory=dict)
     retired_ids: set[str] = field(default_factory=set)
     consents: dict[str, Consent] = field(default_factory=dict)
@@ -25,6 +27,7 @@ class WearableState:
     operations: dict = field(default_factory=dict)
 
     def clear(self):
+        self.sample = None
         self.records.clear()
         self.consents.clear()
         self.retired_ids.clear()

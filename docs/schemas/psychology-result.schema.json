@@ -1,4 +1,73 @@
 {
+  "$defs": {
+    "CanvasQuotes": {
+      "additionalProperties": false,
+      "properties": {
+        "facts": {
+          "anyOf": [
+            {
+              "maxLength": 320,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Facts"
+        },
+        "interpretation": {
+          "anyOf": [
+            {
+              "maxLength": 320,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interpretation"
+        },
+        "emotion": {
+          "anyOf": [
+            {
+              "maxLength": 320,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emotion"
+        },
+        "needs": {
+          "anyOf": [
+            {
+              "maxLength": 320,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Needs"
+        }
+      },
+      "title": "CanvasQuotes",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "properties": {
     "route": {
@@ -64,6 +133,17 @@
         }
       ],
       "title": "Follow Up Offer"
+    },
+    "canvas_quotes": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CanvasQuotes"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

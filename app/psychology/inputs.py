@@ -10,6 +10,7 @@ from app.schemas.session import Message, SessionStatus
 from app.services.state_analysis import analyze_changes, AnalysisConfig
 from app.services.understanding_service import UnderstandingService
 from app.services.wearable_service import WearableService
+from app.wearables.lifesnaps import REPLAY_TREND_METRICS
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,11 @@ class PsychologyInputBuilder:
         snapshot = self.wearables.snapshot(session_id, 'model_context')
         self.wearables.validate_snapshot(session_id, snapshot)
         allowed = set().union(*(c.allowed_metrics for c in record.wearables.consents.values() if 'model_context' in c.scopes))
-        analysis = analyze_changes(snapshot, as_of=as_of, config=config, authorized_metrics=allowed)
+        sample = record.wearables.sample
+        replay = sample is not None and sample.kind == 'replay'
+        metric_options = {'metric_ids': REPLAY_TREND_METRICS} if replay else {}
+        analysis = analyze_changes(snapshot, as_of=as_of, config=config,
+                                   authorized_metrics=allowed, **metric_options)
         excluded = set(excluded_understanding_ids)
         understood = [u for u in self.understandings.current(session_id, scope='model_context')
                       if u.understanding_id not in excluded]
@@ -70,8 +75,11 @@ class PsychologyInputBuilder:
         records, groups, chosen = [], set(), []
         ordered = sorted(analysis.observations, key=lambda o: (o.metric_id not in priority_metrics, not o.inquiry_candidate))
         for observation in ordered:
+            if sample and not replay and not observation.inquiry_candidate:
+                continue
             if len(chosen) >= 6: break
-            if observation.evidence_group not in groups and len(groups) >= 3: continue
+            # The six replay chart metrics fit the same observation budget.
+            if not replay and observation.evidence_group not in groups and len(groups) >= 3: continue
             groups.add(observation.evidence_group)
             chosen.append(observation)
             identity = f'record_{len(records)+1:04}'
@@ -83,10 +91,28 @@ class PsychologyInputBuilder:
                 delta=observation.delta, unit=observation.unit, evidence_group=observation.evidence_group,
                 method=observation.measurement_method, algorithm=observation.source_algorithm_version,
                 inquiry_candidate=observation.inquiry_candidate,
+                provider=observation.provider,
                 limitation='Observation only; cause unknown; correlated metrics are not independent evidence.')
             records.append(RecordSource(source_id=identity, evidence_type='device_observation', content=json.dumps(summary, ensure_ascii=False)))
             sources[identity] = dict(kind='analysis', analysis_id=analysis.analysis_id,
                 evidence_revision=analysis.evidence_revision, record_refs=[r.model_dump() for r in observation.record_refs])
+        if replay:
+            available_metrics = {
+                metric.metric_id for row in snapshot.records if row.record_type == 'daily'
+                for metric in row.metrics if metric.quality == 'valid' and metric.value is not None
+            }
+            for availability in analysis.metric_statuses:
+                if availability.status in ('ready', 'not_authorized') or availability.metric_id not in available_metrics:
+                    continue
+                # A visible series can have too few recent days for comparison.
+                # Pass its scope-filtered coverage, without inventing a value.
+                identity = f'record_{len(records)+1:04}'
+                summary = availability.model_dump(mode='json')
+                summary.update(metric=summary.pop('metric_id'), comparison_available=False)
+                records.append(RecordSource(source_id=identity, evidence_type='device_observation',
+                                            content=json.dumps(summary, ensure_ascii=False)))
+                sources[identity] = dict(kind='analysis', analysis_id=analysis.analysis_id,
+                                         evidence_revision=analysis.evidence_revision, record_refs=[])
         # An explicit deterministic cap; omitted count is visible to caller, never pretend completeness.
         for understanding in sorted(understood, key=lambda u: u.updated_at, reverse=True)[:4]:
             identity = f'record_{len(records)+1:04}'

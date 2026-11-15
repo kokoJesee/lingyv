@@ -41,6 +41,16 @@ class PsychologyRequest(ContractModel):
         return self
 
 
+CanvasQuote = Annotated[Text, StringConstraints(max_length=320)]
+
+
+class CanvasQuotes(ContractModel):
+    facts: CanvasQuote | None = None
+    interpretation: CanvasQuote | None = None
+    emotion: CanvasQuote | None = None
+    needs: CanvasQuote | None = None
+
+
 class PsychologyResult(ContractModel):
     route: Route
     evidence_refs: list[SourceId] = Field(min_length=1)
@@ -49,6 +59,7 @@ class PsychologyResult(ContractModel):
     suggested_next_step: Text | None
     memory_update: None
     follow_up_offer: Text | None
+    canvas_quotes: CanvasQuotes | None = None
 
     @model_validator(mode='after')
     def distinct_references(self):

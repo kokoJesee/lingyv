@@ -25,7 +25,7 @@ from app.schemas.understanding_service import (
 )
 from app.schemas.wearable import ContractModel
 from app.schemas.wearable_service import (
-    DeleteWearableRecord, ImportWearables, SetWearableConsent,
+    DemoSample, DemoWearableImport, DeleteWearableRecord, ImportWearables, SetWearableConsent,
 )
 from app.services.session_service import SessionService
 from app.services.support_views import SupportViewService, wearable_catalog
@@ -80,8 +80,10 @@ def make_support_router(get_sessions: Callable[[], SessionService]) -> APIRouter
                                  timezone_name=settings.analysis_timezone)[request.case_id]
         except (OSError, ValueError, KeyError):
             raise RuntimeFailure('replay_unavailable', 'LifeSnaps 本机选样文件无法读取。', 503) from None
-        return await WearableService(sessions, settings).import_replay(session_id, ImportWearables(
+        return await WearableService(sessions, settings).import_replay(session_id, DemoWearableImport(
             operation_id=request.operation_id, expected_revision=request.expected_revision, batch=batch,
+            sample=DemoSample(sample_id=request.case_id, kind='replay', as_of=request.as_of,
+                              timezone=settings.analysis_timezone),
         ))
 
     @router.get('/support', response_model=SupportNotice)

@@ -54,6 +54,12 @@ class PsychologyAdapter:
                 raise PsychologyFailure('output_validation_failed', '心理输出类型或长度无效。')
             result = parse_structured_output(text, PsychologyResult)
             validate_policy(request, result, previous_route=previous_route, unresolved=unresolved)
+            if result.canvas_quotes is not None:
+                # Only forward verbatim excerpts of this turn's user message.
+                # An ungrounded suggestion must not become a prefilled field.
+                for field, quote in result.canvas_quotes:
+                    if quote is not None and quote not in request.current_message.content:
+                        setattr(result.canvas_quotes, field, None)
             if ensure_current: ensure_current()
             return PsychologyResponse(schema_version=request.schema_version, session_id=request.session_id,
                 request_id=request.request_id, session_revision=request.session_revision, result=result)

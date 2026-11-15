@@ -25,6 +25,8 @@ COLUMNS = {
 }
 
 
+REPLAY_TREND_METRICS = tuple(metric for metric in COLUMNS if metric != "sleep_latency_minutes")
+
 def check(condition, description):
     if not condition:
         raise ValueError(description)

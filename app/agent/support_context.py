@@ -95,8 +95,11 @@ def prepare_support(record, sessions, request, settings, *, as_of=None):
                 inherited.understanding_refs.extend(deps.understanding_refs)
                 if deps.wearable_revision is not None: inherited.wearable_revision = deps.wearable_revision
     builder = PsychologyInputBuilder(sessions)
+    sample = record.wearables.sample
+    analysis_at = as_of or (sample.as_of if sample else datetime.now(timezone.utc))
+    analysis_zone = sample.timezone if sample else settings.analysis_timezone
     prepared = builder.prepare_locked(record.session.session_id, request.request_id, current_message=request.content,
-        history=history, as_of=as_of or datetime.now(timezone.utc), config=AnalysisConfig(timezone=settings.analysis_timezone),
+        history=history, as_of=analysis_at, config=AnalysisConfig(timezone=analysis_zone),
         excluded_understanding_ids=suppressed)
     for source in prepared.source_manifest.values():
         if source['kind'] == 'analysis': inherited.wearable_revision = prepared.wearable_revision

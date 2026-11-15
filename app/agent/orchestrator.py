@@ -49,16 +49,29 @@ class AgentOrchestrator:
         record = self.sessions.require(session_id)
         support = self.settings.psychology_enabled
         fingerprint_content = request.content if not support else 'psychology.v1:' + json.dumps(
-            request.model_dump(mode='json', exclude={'request_id'}), ensure_ascii=False, sort_keys=True)
+            request.model_dump(mode='json', exclude={'request_id', 'replay_context_revision'}
+                if request.replay_context_revision is None else {'request_id'}),
+            ensure_ascii=False, sort_keys=True)
         fingerprint = hashlib.sha256(fingerprint_content.encode("utf-8")).hexdigest()
         async with record.lock:
             if record.lifecycle_pending:
                 raise RuntimeFailure("session_busy", "会话生命周期操作进行中。")
-            if not (support and self.settings.psychology_demo_mode and isinstance(model, ScriptedSupportModel)) and (
-                REPLAY_PROVIDER in record.wearables.consents
-                or any(row.provider == REPLAY_PROVIDER for row in record.wearables.records.values())
-            ):
-                raise RuntimeFailure('replay_local_only', 'LifeSnaps 回放旅程只能使用本机演示回应。')
+            has_replay = REPLAY_PROVIDER in record.wearables.consents or any(
+                row.provider == REPLAY_PROVIDER for row in record.wearables.records.values()
+            )
+            if has_replay:
+                local_replay = support and self.settings.psychology_demo_mode and isinstance(model, ScriptedSupportModel)
+                sample = record.wearables.sample
+                live_replay = (
+                    self.settings.lifesnaps_replay_enabled and self.settings.lifesnaps_live_model_enabled
+                    and not self.settings.psychology_demo_mode and sample is not None and sample.kind == 'replay'
+                )
+                if not (local_replay or live_replay):
+                    raise RuntimeFailure('replay_local_only', 'LifeSnaps 回放旅程未启用模型接口。')
+                if live_replay and request.replay_context_revision != record.wearables.revision:
+                    raise RuntimeFailure('replay_context_changed', '请确认使用当前 LifeSnaps 样本的变化摘要后再发送。')
+            elif request.replay_context_revision is not None:
+                raise RuntimeFailure('replay_context_changed', '所选 LifeSnaps 样本已变化，请重新选样后发送。')
             if record.support_mode and not support:
                 raise RuntimeFailure("session_mode_conflict", "心理流程会话不能降级为普通聊天；请清空或新建会话。")
             if request.correction_of is not None and not support:
