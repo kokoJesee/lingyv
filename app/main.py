@@ -106,6 +106,7 @@ async def health_check():
             "storage": "memory", "prompt_version": PSYCHOLOGY_PROMPT_VERSION if settings.psychology_enabled else PROMPT_VERSION,
             "psychology_enabled": settings.psychology_enabled,
             "psychology_demo_mode": settings.psychology_enabled and settings.psychology_demo_mode,
+            "lifesnaps_replay_enabled": settings.lifesnaps_replay_enabled,
             "psychology_review_status": "unreviewed",
             "max_steps": settings.runtime_max_steps,
             "max_context_chars": settings.runtime_max_context_chars,

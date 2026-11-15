@@ -12,6 +12,7 @@ from app.agent.context import build_context
 from app.agent.events import emit
 from app.agent.support_context import prepare_support, commit_correction, prune_cached_results
 from app.psychology.adapter import PsychologyAdapter
+from app.psychology.demo import ScriptedSupportModel
 from app.psychology.policy import REVIEW_STATUS
 from app.schemas.context import TurnDependencies
 from app.agent.workflow import WorkflowEngine
@@ -24,6 +25,7 @@ from app.schemas.message import SendMessageRequest, SendMessageResponse
 from app.schemas.session import Message, Session, SessionState, SessionStatus
 from app.schemas.workflow import DemoDraft, StopReason, WorkflowPhase, WorkflowSnapshot
 from app.services.session_service import OperationRecord, SessionRecord, SessionService
+from app.wearables.lifesnaps import PROVIDER as REPLAY_PROVIDER
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,11 @@ class AgentOrchestrator:
         async with record.lock:
             if record.lifecycle_pending:
                 raise RuntimeFailure("session_busy", "会话生命周期操作进行中。")
+            if not (support and self.settings.psychology_demo_mode and isinstance(model, ScriptedSupportModel)) and (
+                REPLAY_PROVIDER in record.wearables.consents
+                or any(row.provider == REPLAY_PROVIDER for row in record.wearables.records.values())
+            ):
+                raise RuntimeFailure('replay_local_only', 'LifeSnaps 回放旅程只能使用本机演示回应。')
             if record.support_mode and not support:
                 raise RuntimeFailure("session_mode_conflict", "心理流程会话不能降级为普通聊天；请清空或新建会话。")
             if request.correction_of is not None and not support:

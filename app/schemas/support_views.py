@@ -119,3 +119,8 @@ class SimulateWearablesRequest(WearableOperation):
         return MockQuery(as_of=self.as_of, scenario_id=self.scenario_id,
                          seed=self.seed, days=self.days, timezone=self.timezone,
                          include_intervals=False)
+
+
+class ReplayWearablesRequest(WearableOperation):
+    case_id: Literal['LS01', 'LS02', 'LS03', 'LS04']
+    as_of: AwareDatetime

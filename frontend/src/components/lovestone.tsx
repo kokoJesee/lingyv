@@ -60,6 +60,7 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
   const journey = useSupportJourney(liveEnabled);
   const backend = liveEnabled && journey.health?.runtime.psychology_enabled === true;
   const fixture = backend && journey.health?.runtime.psychology_demo_mode === true;
+  const replay = journey.state?.wearables.providers.some(({ provider }) => provider === "lifesnaps_v4_replay");
   const connectionReady = !liveEnabled || !!journey.health;
   const [understandingId, setUnderstandingId] = useState<string | null>(null);
   const previousSession = useRef<string | null>(null);
@@ -327,7 +328,7 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
       <main id="main-content" ref={main} tabIndex={-1} className="content">
         {privacy && <section id="privacy-info" className="privacy-drawer" aria-label="演示与隐私说明">
           <LockKeyhole size={20} aria-hidden="true" />
-          <div><strong>这是演示空间</strong><p>{backend ? "仅使用虚构内容。对话和确认理解保留在本机后端内存，设备用途单独选择；刷新不会删除后端数据。经历卡暂存本页，旅程可在成长档案中主动保存。" : "请只填写虚构内容。经历卡暂存本页，刷新后清除；联网发送需要你的同意。"}</p></div>
+          <div><strong>这是演示空间</strong><p>{backend ? "请仅输入虚构内容。对话和确认理解保留在本机后端内存，设备用途单独选择；刷新不会删除后端数据。经历卡暂存本页，旅程可在成长档案中主动保存。" : "请只填写虚构内容。经历卡暂存本页，刷新后清除；联网发送需要你的同意。"}</p></div>
           <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => void clearSession()}>清空当前记录</button>
           {backend && journey.state?.session.status === "ACTIVE" && <button type="button" className="text-button" disabled={pending} onClick={() => void journey.end()}>结束当前旅程</button>}
           <button type="button" className="icon-button" aria-label="关闭演示说明" onClick={() => setPrivacy(false)}><X size={18} /></button>
@@ -354,7 +355,7 @@ export function LoveStone({ liveEnabled }: { liveEnabled: boolean }) {
                     <span>{input.length} / {maxInputLength}</span>
                   </div>
                   {liveEnabled && <label className="consent-box"><input type="checkbox" checked={consent} disabled={pending} onChange={(e) => setConsent(e.target.checked)} /><span>{fixture ? "使用这次虚构输入与当前旅程，生成模拟回应。" : backend ? "同意使用本次虚构输入、会话历史与已确认理解生成回应；设备用途另行选择。" : "同意发送本次虚构输入以生成回应。"}</span></label>}
-                  <p className="agent-data-note"><LockKeyhole size={12} /> {!liveEnabled ? "本地模拟理解 · 请仅输入虚构内容 · 刷新即清除" : !connectionReady ? "正在连接本机服务" : fixture ? "模拟回应 · 无真实设备连接 · 仅使用虚构内容" : "请仅使用虚构内容 · 回应未经专业审核"}</p>
+                  <p className="agent-data-note"><LockKeyhole size={12} /> {!liveEnabled ? "本地模拟理解 · 请仅输入虚构内容 · 刷新即清除" : !connectionReady ? "正在连接本机服务" : fixture ? (replay ? "本机模拟回应 · LifeSnaps 记录回放 · 请仅输入虚构内容" : "模拟回应 · 无真实设备连接 · 请仅输入虚构内容") : "请仅使用虚构内容 · 回应未经专业审核"}</p>
                   {pending && <p className="inline-status" role="status">拾光正在准备回应…</p>}
                   {(error || journey.error) && <p className="inline-status" role="alert">{error || journey.error}</p>}
                   {liveEnabled && !connectionReady && <button type="button" className="text-button" disabled={pending} onClick={() => void journey.refreshAll()}>重新连接</button>}

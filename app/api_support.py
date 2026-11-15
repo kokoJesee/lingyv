@@ -10,10 +10,13 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 from pydantic import AwareDatetime, field_validator
 
+from app.agent.errors import RuntimeFailure
+from app.config.settings import get_settings
+from app.wearables.lifesnaps import load_batches
 from app.psychology.policy import SupportNotice, support_entry
 from app.schemas.state_analysis import StateAnalysis
 from app.schemas.support_views import (
-    SimulateWearablesRequest, SupportStateView, TrendQuery, WearableTrends,
+    ReplayWearablesRequest, SimulateWearablesRequest, SupportStateView, TrendQuery, WearableTrends,
 )
 from app.schemas.understanding import Understanding
 from app.schemas.understanding_service import (
@@ -64,6 +67,22 @@ def make_support_router(get_sessions: Callable[[], SessionService]) -> APIRouter
     @router.post('/sessions/{session_id}/wearables/simulate')
     async def simulate_wearables(session_id: UUID, request: SimulateWearablesRequest):
         return await SupportViewService(get_sessions()).simulate(session_id, request)
+
+    @router.post('/sessions/{session_id}/wearables/replay')
+    async def replay_wearables(session_id: UUID, request: ReplayWearablesRequest):
+        settings = get_settings()
+        if not settings.lifesnaps_replay_enabled:
+            raise RuntimeFailure('replay_unavailable', 'LifeSnaps 本机回放未启用。', 503)
+        sessions = get_sessions()
+        sessions.require(session_id)
+        try:
+            batch = load_batches(settings.lifesnaps_replay_csv, as_of=request.as_of,
+                                 timezone_name=settings.analysis_timezone)[request.case_id]
+        except (OSError, ValueError, KeyError):
+            raise RuntimeFailure('replay_unavailable', 'LifeSnaps 本机选样文件无法读取。', 503) from None
+        return await WearableService(sessions, settings).import_replay(session_id, ImportWearables(
+            operation_id=request.operation_id, expected_revision=request.expected_revision, batch=batch,
+        ))
 
     @router.get('/support', response_model=SupportNotice)
     async def get_support():

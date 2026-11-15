@@ -80,6 +80,7 @@ export type SupportHealth = {
   runtime: {
     psychology_enabled: boolean;
     psychology_demo_mode: boolean;
+    lifesnaps_replay_enabled?: boolean;
     psychology_review_status: string;
     prompt_version: string;
     storage: string;
@@ -162,5 +163,6 @@ export type WearableReceipt = { revision: number; accepted?: number; unchanged?:
 export type Operation = { operation_id: string };
 export type SendSupportMessage = { content: string; request_id: string; correction_of?: { understanding_id: string; expected_revision: number } };
 export type SimulationRequest = Operation & { expected_revision: number; as_of: string; scenario_id: string; seed: number; days?: number; timezone?: string; replace_existing?: boolean };
+export type ReplayRequest = Operation & { expected_revision: number; as_of: string; case_id: string };
 export type ConsentRequest = Operation & { expected_revision: number; provider: string; allowed_metrics: string[]; scopes: Scope[] };
 export type UnderstandingProposal = Operation & { interpretation: string; origin: "agent_hypothesis" | "user_report"; evidence_refs: EvidenceReference[] };

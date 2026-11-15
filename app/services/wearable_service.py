@@ -16,6 +16,7 @@ from app.schemas.workflow import StopReason, WorkflowPhase
 from app.schemas.wearable_service import ImportWearables, ReplaceSimulatedWearables, SetWearableConsent, DeleteWearableRecord
 from app.services.session_service import SessionService, OperationRecord
 from app.services.wearable_state import Consent
+from app.wearables.lifesnaps import PROVIDER as REPLAY_PROVIDER
 
 MAX_BYTES = 4 * 1024 * 1024
 MAX_RECORDS = 2000
@@ -36,6 +37,9 @@ class WearableService:
 
     async def import_records(self, session_id, request: ImportWearables):
         return await self._apply(session_id, 'import', request)
+
+    async def import_replay(self, session_id, request: ImportWearables):
+        return await self._apply(session_id, 'replay', request)
 
     async def replace_simulated(self, session_id, request: ReplaceSimulatedWearables):
         """Replace only this simulator's rows; preserve conversation and other sources."""
@@ -113,7 +117,13 @@ class WearableService:
                     state.operations[request.operation_id] = operation
                 try:
                     self._check_revision(state, request.expected_revision)
-                    if action == 'import':
+                    if action in ('import', 'replace_mock') and any(
+                        row.provider == REPLAY_PROVIDER for row in state.records.values()
+                    ):
+                        raise RuntimeFailure('replay_requires_empty_session', '回放旅程使用单一来源。')
+                    if action in ('import', 'replay'):
+                        if action == 'replay' and (state.records or state.consents):
+                            raise RuntimeFailure('replay_requires_empty_session', '请为回放开启新测试旅程。')
                         result, records = self._prepare_import(state, request.batch)
                         changed = bool(result['accepted'])
                         if changed:

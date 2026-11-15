@@ -1,10 +1,13 @@
 import type {
-  ArchiveInfo, ConsentRequest, Operation, SendSupportMessage, SimulationRequest, StateAnalysis,
+  ArchiveInfo, ConsentRequest, Operation, ReplayRequest, SendSupportMessage, SimulationRequest, StateAnalysis,
   SupportHealth, SupportNotice, SupportResponse, SupportSession, SupportState, UnderstandingProposal,
   UnderstandingView, UserReport, WearableCatalog, WearableReceipt, WearableTrends,
 } from "./support-types";
 
 const messages: Record<string, string> = {
+  replay_unavailable: "本机 LifeSnaps 选样暂不可用。",
+  replay_local_only: "LifeSnaps 回放旅程只能使用本机演示回应。",
+  replay_requires_empty_session: "请为 LifeSnaps 回放开启新测试旅程。",
   not_configured: "本地支持接口未启用，请先启动后端并配置前端中转地址。",
   invalid_input: "提交内容不符合接口要求，请检查后重试。",
   session_not_found: "这段旅程已不存在，请重新开始。",
@@ -96,6 +99,7 @@ export function createSupportClient(base = "/api/support") {
     clear: (session: string) => request<SupportSession>(`${sessionPath(session)}/messages`, "DELETE"),
     end: (session: string) => request<SupportSession>(`${sessionPath(session)}/end`, "POST"),
     simulate: (session: string, body: SimulationRequest) => request<WearableReceipt>(`${sessionPath(session)}/wearables/simulate`, "POST", body),
+    replay: (session: string, body: ReplayRequest) => request<WearableReceipt>(`${sessionPath(session)}/wearables/replay`, "POST", body),
     setConsent: (session: string, body: ConsentRequest) => request<WearableReceipt>(`${sessionPath(session)}/wearables/consent`, "POST", body),
     trends: (session: string, params: { as_of: string; days: 7 | 14 | 30; timezone?: string }, signal?: AbortSignal) => {
       const query = new URLSearchParams({ as_of: params.as_of, days: String(params.days), timezone: params.timezone ?? "Asia/Shanghai" });

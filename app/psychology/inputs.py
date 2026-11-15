@@ -82,6 +82,7 @@ class PsychologyInputBuilder:
                 baseline=observation.baseline_median, recent=observation.recent_median,
                 delta=observation.delta, unit=observation.unit, evidence_group=observation.evidence_group,
                 method=observation.measurement_method, algorithm=observation.source_algorithm_version,
+                inquiry_candidate=observation.inquiry_candidate,
                 limitation='Observation only; cause unknown; correlated metrics are not independent evidence.')
             records.append(RecordSource(source_id=identity, evidence_type='device_observation', content=json.dumps(summary, ensure_ascii=False)))
             sources[identity] = dict(kind='analysis', analysis_id=analysis.analysis_id,

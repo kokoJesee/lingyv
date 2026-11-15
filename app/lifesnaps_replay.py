@@ -1,10 +1,7 @@
 """Run LifeSnaps device development cases with local services and a fixed model."""
 import argparse
 import asyncio
-import csv
 import json
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,26 +10,12 @@ from app.psychology.adapter import PsychologyAdapter
 from app.psychology.demo import ScriptedSupportModel
 from app.psychology.inputs import PsychologyInputBuilder
 from app.schemas.support_views import TrendQuery
-from app.schemas.wearable import MetricValue, WearableDailyRecord, WearableImportBatch
 from app.schemas.wearable_service import ImportWearables, SetWearableConsent
 from app.services.session_service import SessionService
 from app.services.state_analysis import AnalysisConfig, StateAnalysisService
 from app.services.support_views import SupportViewService
-from app.wearables.metric_registry import get_metric
+from app.wearables.lifesnaps import PROVIDER, REPLAY_AS_OF, SLEEP, COLUMNS, check, load_batches
 
-PROVIDER = 'lifesnaps_v4_replay'
-REPLAY_START = datetime(2022, 1, 1, tzinfo=timezone.utc)
-REPLAY_AS_OF = REPLAY_START + timedelta(days=21)
-SLEEP = 'sleep_duration_minutes'
-COLUMNS = {
-    SLEEP: 'sleep_minutes',
-    'sleep_latency_minutes': 'minutes_to_fall_asleep',
-    'resting_heart_rate_bpm': 'resting_hr_bpm',
-    'steps': 'steps',
-    'sedentary_minutes': 'sedentary_minutes',
-    'night_resp_rate_mean': 'sleep_respiration_breaths_per_min',
-    'night_spo2_mean_pct': 'spo2_pct',
-}
 # Expectations were calculated on the source CSV before it was converted to records.
 EXPECTED = {
     'LS01': (-86.5, 2315.0, True, True, 3),
@@ -40,58 +23,6 @@ EXPECTED = {
     'LS03': (0.0, -316.0, False, False, 3),
     'LS04': (None, -76.5, None, False, 1),
 }
-
-
-def check(condition, description):
-    if not condition:
-        raise ValueError(description)
-
-
-def load_batches(path: Path) -> dict[str, WearableImportBatch]:
-    by_case = defaultdict(dict)
-    with path.open(newline='', encoding='utf-8-sig') as handle:
-        rows = csv.DictReader(handle)
-        required = {'case_id', 'day', *COLUMNS.values()}
-        check(required <= set(rows.fieldnames or ()), 'CSV lacks required device columns')
-        for row in rows:
-            case, day = row['case_id'], int(row['day'])
-            check(case in EXPECTED and 1 <= day <= 21, 'Unknown case or replay day')
-            check(day not in by_case[case], 'Duplicate case day')
-            by_case[case][day] = row
-
-    check(set(by_case) == set(EXPECTED), 'Expected the four curated LifeSnaps cases')
-    batches = {}
-    for case, days in sorted(by_case.items()):
-        check(set(days) == set(range(1, 22)), f'{case}: expected 21 calendar days')
-        daily = []
-        for day, row in sorted(days.items()):
-            start = REPLAY_START + timedelta(days=day - 1)
-            end = start + timedelta(days=1)
-            record_id = f'{case}-day-{day:02d}'
-            metrics = []
-            for metric, column in COLUMNS.items():
-                definition = get_metric(metric)
-                text = row[column].strip()
-                value = float(text) if text else None
-                if value is not None and definition.value_type == 'integer':
-                    check(value.is_integer(), f'{case} day {day}: {column} must be a count')
-                    value = int(value)
-                metrics.append(MetricValue(
-                    metric_id=metric, value_type=definition.value_type, value=value,
-                    unit=definition.unit, measurement_kind=definition.measurement_kind,
-                    measurement_method='fitbit_daily_export', aggregation_method='published_daily_summary',
-                    window={'start': start, 'end': end}, source_algorithm_version='lifesnaps_v4',
-                    quality='missing' if value is None else 'valid',
-                    quality_reasons=['source_csv_empty'] if value is None else [],
-                ))
-            daily.append(WearableDailyRecord(
-                record_id=record_id, record_revision=1, provider_record_id=record_id,
-                provider=PROVIDER, device_id=f'fitbit-sense-{case}', is_simulated=False,
-                timezone='UTC', local_date=start.date(), day_complete=True,
-                observed_start=start, observed_end=end, ingested_at=REPLAY_AS_OF, metrics=metrics,
-            ))
-        batches[case] = WearableImportBatch(daily=daily)
-    return batches
 
 
 def device_inputs(prepared):

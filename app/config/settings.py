@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     psychology_demo_mode: bool = False
     psychology_demo_route: Literal['routine_support', 'clarify_safety', 'safety_support', 'urgent_real_world_help'] = 'routine_support'
     analysis_timezone: str = "Asia/Shanghai"
+    lifesnaps_replay_csv: Path | None = None
 
     runtime_max_steps: int = Field(default=8, ge=1, le=100)
     runtime_max_context_chars: int = Field(default=48000, ge=1)
@@ -45,6 +46,11 @@ class Settings(BaseSettings):
     asr_max_concurrent: int = Field(default=2, ge=1, le=10)
     asr_max_requests: int = Field(default=100, ge=1, le=1000)
     asr_cache_seconds: float = Field(default=600, ge=1, le=3600)
+
+    @property
+    def lifesnaps_replay_enabled(self) -> bool:
+        return bool(self.psychology_enabled and self.psychology_demo_mode
+                    and self.lifesnaps_replay_csv and self.lifesnaps_replay_csv.is_file())
 
     @property
     def asr_configured(self) -> bool:

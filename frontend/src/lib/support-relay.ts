@@ -23,7 +23,7 @@ const provider: Projection = { ...scalars("provider", "record_count", "is_simula
 const health: Projection = {
   status: true, service: true,
   llm: scalars("provider", "model", "key_configured"),
-  runtime: scalars("storage", "prompt_version", "psychology_enabled", "psychology_demo_mode", "psychology_review_status", "max_steps", "max_context_chars"),
+  runtime: scalars("storage", "prompt_version", "psychology_enabled", "psychology_demo_mode", "lifesnaps_replay_enabled", "psychology_review_status", "max_steps", "max_context_chars"),
 };
 const psychology: Projection = {
   ...scalars("schema_version", "session_id", "request_id", "session_revision"),
@@ -87,6 +87,7 @@ const definitions: Route[] = [
   { expression: new RegExp(`^${sessionPrefix}/workflow/cancel$`), methods: ["POST"], output: session, bodyKeys: ["run_id"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/import$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "batch"], maxBody: maxImportBody },
   { expression: new RegExp(`^${sessionPrefix}/wearables/simulate$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "as_of", "scenario_id", "seed", "days", "timezone", "replace_existing"] },
+  { expression: new RegExp(`^${sessionPrefix}/wearables/replay$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "as_of", "case_id"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/consent$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "provider", "allowed_metrics", "scopes"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/delete$`), methods: ["POST"], output: receipt, bodyKeys: ["operation_id", "expected_revision", "record_id"] },
   { expression: new RegExp(`^${sessionPrefix}/wearables/trends$`), methods: ["GET"], output: trends, query: ["as_of", "days", "timezone"] },
@@ -111,7 +112,7 @@ request_limit_exceeded request_cleared request_restored source_withdrawn run_can
 stale_revision stale_record_revision stale_wearable_snapshot stale_understanding_revision understanding_not_found
 understanding_not_confirmable understanding_not_editable understanding_source_invalid stale_confirmation
 invalid_confirmation confirmation_conflict invalid_evidence_reference source_changed source_not_found
-invalid_scope record_deleted record_identity_conflict wearable_too_large wearable_storage_limit
+invalid_scope record_deleted record_identity_conflict wearable_too_large wearable_storage_limit replay_unavailable replay_local_only replay_requires_empty_session
 model_not_configured model_unavailable model_timeout model_http_error model_empty_response model_invalid_response
 model_output_invalid output_validation_failed context_limit_exceeded step_limit_exceeded
 unsupported_safety_route route_transition_unreviewed workflow_not_running workflow_run_mismatch

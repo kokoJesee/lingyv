@@ -189,7 +189,7 @@ function ProviderSettings({ provider, journey }: { provider: WearableProvider; j
   const [scopes, setScopes] = useState<Scope[]>(provider.scopes);
   const disabled = !!journey.action || journey.state?.session.status !== "ACTIVE";
   return <div className="signals-provider-settings">
-    <p>{provider.is_simulated ? "模拟设备" : "设备来源"} · {provider.record_count} 条记录</p>
+    <p>{provider.provider === "lifesnaps_v4_replay" ? "LifeSnaps 真实记录回放" : provider.is_simulated ? "模拟设备" : "设备来源"} · {provider.record_count} 条记录</p>
     <label><input type="checkbox" disabled={disabled} checked={scopes.includes("local_analysis")} onChange={(e) => setScopes(e.target.checked ? [...scopes, "local_analysis"] : scopes.filter((s) => s !== "local_analysis"))} />允许本机展示与分析</label>
     <label><input type="checkbox" disabled={disabled} checked={scopes.includes("model_context")} onChange={(e) => setScopes(e.target.checked ? [...scopes, "model_context"] : scopes.filter((s) => s !== "model_context"))} />允许必要设备观察用于支持对话</label>
     <details><summary>选择使用的指标 · {metrics.length} 项</summary><div className="signals-settings-metrics">{provider.available_metrics.map((id) => <label key={id}><input type="checkbox" disabled={disabled} checked={metrics.includes(id)} onChange={(e) => setMetrics(e.target.checked ? [...metrics, id] : metrics.filter((m) => m !== id))} />{metricName(id)}</label>)}</div></details>
@@ -199,15 +199,27 @@ function ProviderSettings({ provider, journey }: { provider: WearableProvider; j
 
 function DataSettings({ journey }: { journey: JourneyController }) {
   const [scenario, setScenario] = useState("S02");
+  const [replayCase, setReplayCase] = useState("LS01");
   const active = journey.state?.session.status === "ACTIVE";
   const disabled = !!journey.action || journey.pending;
+  const replayLoaded = journey.state?.wearables.providers.some(({ provider }) => provider === "lifesnaps_v4_replay");
   return <details className="signals-data-settings"><summary>数据与使用设置</summary>
+    {journey.health?.runtime.lifesnaps_replay_enabled && <>
+      <label className="signals-metric-select"><span>LifeSnaps 回放</span><select aria-label="LifeSnaps 回放" value={replayCase} disabled={disabled} onChange={(e) => setReplayCase(e.target.value)}>
+        <option value="LS01">01 · 睡得更少</option><option value="LS02">02 · 活动增加</option>
+        <option value="LS03">03 · 睡眠稳定</option><option value="LS04">04 · 睡眠缺测</option>
+      </select></label>
+      <button className="signals-button signals-outline" type="button" disabled={disabled} onClick={() => void journey.replay(replayCase)}>开启 LifeSnaps 测试旅程</button>
+      <p>回放真实研究记录，日期对齐至最近 21 个完整日。每组使用一个测试旅程，设备用途单独选择。</p>
+    </>}
+    {!replayLoaded && <>
     <p>先选样本并导入，再允许本机展示模拟读数。用于支持对话需要另行选择。</p>
     {!journey.health?.runtime.psychology_enabled && <p>数据服务尚未就绪，可刷新连接后重试。</p>}
     <div className="signals-settings-actions">{!active && <button className="signals-button signals-outline" type="button" disabled={disabled || !journey.health?.runtime.psychology_enabled} onClick={() => void journey.start()}>开启本次旅程</button>}<button className="signals-button signals-outline" type="button" disabled={disabled} onClick={() => void journey.refreshAll()}>刷新连接</button></div>
     <label className="signals-metric-select"><span>模拟样本</span><select aria-label="模拟样本" value={scenario} disabled={disabled || !active} onChange={(e) => setScenario(e.target.value)}>{(journey.catalog?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{item.label}</option>)}</select></label>
     <button className="signals-button signals-outline" type="button" disabled={disabled || !active || !journey.catalog} onClick={() => void journey.simulate(scenario)}>{journey.state?.wearables.record_count ? "切换到所选样本" : "导入 21 天模拟记录"}</button>
     {!!journey.state?.wearables.record_count && <p>选择后点击切换：替换模拟记录并保留对话，已允许的本机展示继续生效；用于对话需重新选择。</p>}
+    </>}
     {journey.state?.wearables.providers.map((provider) => <ProviderSettings key={`${provider.provider}:${journey.state?.wearables.revision}`} provider={provider} journey={journey} />)}
     {journey.action && <p role="status">{journey.action}…</p>}{journey.notice && <p role="status">{journey.notice}</p>}{journey.error && <p role="alert">{journey.error}</p>}
   </details>;
@@ -256,7 +268,7 @@ export function CinematicSignals({ onOpenAgent, journey }: { onOpenAgent: () => 
           <p className="signals-hero-description signals-rise"><strong>身心状态 · 身体节奏</strong><br />从睡眠和心跳的细小起伏里，多看见一点自己的日常。</p>
           <div className="signals-rise signals-hero-action"><button className="signals-button signals-glass" type="button" onClick={() => moveTo(chartTitle.current)}>{journey ? "查看个人趋势" : "查看模拟趋势"} <ArrowDown size={16} aria-hidden="true" /></button></div>
         </div>
-        <div className="signals-hero-label"><span aria-hidden="true" /> {journey ? "按用途读取的观察" : "模拟数据"} <i aria-hidden="true" /> {journey?.state?.wearables.record_count ? "含模拟记录 · 无真实设备连接" : "无设备连接"}</div>
+        <div className="signals-hero-label"><span aria-hidden="true" /> {journey ? "按用途读取的观察" : "模拟数据"} <i aria-hidden="true" /> {journey?.state?.wearables.providers.some((item) => item.provider === "lifesnaps_v4_replay") ? "LifeSnaps 真实记录回放" : journey?.state?.wearables.record_count ? "含模拟记录 · 无真实设备连接" : "无设备连接"}</div>
       </section>
 
       <section className="signals-tagline" aria-labelledby="signals-tagline-title">

@@ -293,6 +293,19 @@ export function useSupportJourney(active: boolean) {
     return true;
   });
 
+  const replay = (caseId: string) => actionRun("载入 LifeSnaps 回放", async () => {
+    if (running.current || !health?.runtime.lifesnaps_replay_enabled) return;
+    const at = new Date().toISOString();
+    const session = await api.createSession();
+    await api.replay(session.session_id, { operation_id: uuid(), expected_revision: 0, as_of: at, case_id: caseId });
+    if (!mounted.current) return;
+    sid.current = session.session_id;
+    setLastAttempt(null); setFailedAttempt(false); setResponse(null);
+    setTrends(null); setAnalysis(null); updateTimezone(null); setAsOf(at);
+    await refresh(session.session_id);
+    setNotice("已载入 21 天 LifeSnaps 研究记录。选择用途后可查看趋势或用于本机演示对话。");
+  });
+
   const consent = (provider: WearableProvider, metrics: string[], scopes: Scope[]) => actionRun("更新设备用途", async () => {
     const id = sid.current, latest = stateRef.current; if (!id || !latest) return;
     setTrends(null); setAnalysis(null); setResponse(null);
@@ -372,7 +385,7 @@ export function useSupportJourney(active: boolean) {
 
   return { health, state, catalog, support, response, trends, analysis, archives, pending, action, error, notice, lastAttempt, failedAttempt, asOf, range, timezone,
     setTimezone: (value: string) => { if (!stateRef.current?.wearables.available_timezones?.includes(value)) return; ++signalReadTicket.current; setTrends(null); setAnalysis(null); updateTimezone(value); },
-    setRange: (days: 7 | 14 | 30) => { ++signalReadTicket.current; setTrends(null); updateRange(days); }, start, ensureSession, refreshAll, send, stop, clear, end, simulate, consent, propose, edit, decide, commitUnderstanding, save, load, removeArchive,
+    setRange: (days: 7 | 14 | 30) => { ++signalReadTicket.current; setTrends(null); updateRange(days); }, start, ensureSession, refreshAll, send, stop, clear, end, simulate, replay, consent, propose, edit, decide, commitUnderstanding, save, load, removeArchive,
     retry: (same: boolean) => lastAttempt ? send(same ? lastAttempt : { ...lastAttempt, request_id: uuid() }) : Promise.resolve<SupportResponse | undefined>(undefined),
   };
 }
