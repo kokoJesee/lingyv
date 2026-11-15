@@ -31,6 +31,14 @@ class DeepSeekClient:
         self.scheduler = scheduler or CallScheduler(settings)
 
     async def generate_reply(self, messages: Sequence[Message]) -> str:
+        return await self._generate(messages, SYSTEM_PROMPT, PROMPT_VERSION)
+
+    async def generate_structured(self, *, system_prompt: str, request_json: str) -> str:
+        # Separate system instructions; preserve the existing chat endpoint and transport.
+        from app.psychology.prompts import PROMPT_VERSION as psychology_prompt_version
+        return await self._generate([Message(role="user", content=request_json)], system_prompt, psychology_prompt_version)
+
+    async def _generate(self, messages: Sequence[Message], system_prompt: str, prompt_version: str) -> str:
         if not self.settings.key_configured:
             raise LLMError(
                 "model_not_configured",
@@ -40,18 +48,18 @@ class DeepSeekClient:
 
         try:
             async with self.scheduler.slot("deepseek", self.settings.llm_timeout_seconds) as ticket:
-                return await self._request_reply(messages, ticket)
+                return await self._request_reply(messages, ticket, system_prompt, prompt_version)
         except CallLimitError as error:
             if error.code == "external_call_timeout":
                 raise LLMError("model_timeout", "模型回复超时，请稍后重试。", 504) from None
             raise
 
-    async def _request_reply(self, messages: Sequence[Message], ticket: CallTicket) -> str:
+    async def _request_reply(self, messages: Sequence[Message], ticket: CallTicket, system_prompt: str, prompt_version: str) -> str:
 
         payload = {
             "model": self.settings.deepseek_model,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 *[message.model_dump() for message in messages],
             ],
             "stream": False,
@@ -62,7 +70,7 @@ class DeepSeekClient:
         logger.info(
             "DeepSeek request started | model=%s | context_messages=%d | prompt_version=%s",
             self.settings.deepseek_model,
-            len(messages), PROMPT_VERSION,
+            len(messages), prompt_version,
         )
 
         try:
@@ -151,5 +159,9 @@ class DeepSeekClient:
 
 
 def get_chat_model(request: Request = None) -> ChatModel:
+    settings = get_settings()
+    if settings.psychology_enabled and settings.psychology_demo_mode:
+        from app.psychology.demo import ScriptedSupportModel
+        return ScriptedSupportModel(settings.psychology_demo_route)
     scheduler = request.app.state.call_scheduler if request is not None else None
-    return DeepSeekClient(get_settings(), scheduler=scheduler)
+    return DeepSeekClient(settings, scheduler=scheduler)

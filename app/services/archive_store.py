@@ -90,6 +90,7 @@ class SQLiteArchiveStore:
         with self._connection() as connection:
             rows = connection.execute("""SELECT archive_id, archive_version, saved_at,
                 session_revision, message_count, draft_count, status
+                , CASE WHEN json_valid(payload) THEN json_extract(payload, '$.version') ELSE -1 END AS snapshot_version
                 FROM archives ORDER BY saved_at DESC, archive_id LIMIT ?""", (MAX_ARCHIVES + 1,)).fetchall()
             if len(rows) > MAX_ARCHIVES:
                 raise _invalid()
@@ -112,6 +113,7 @@ class SQLiteArchiveStore:
             connection.execute("UPDATE archive_clock SET value=value+1")
             next_version = connection.execute("SELECT value FROM archive_clock").fetchone()[0]
             info = ArchiveInfo(
+                snapshot_version=snapshot.version,
                 archive_id=snapshot.session.session_id, archive_version=next_version,
                 saved_at=datetime.now(timezone.utc), session_revision=snapshot.session.revision,
                 message_count=len(snapshot.session.messages), draft_count=len(snapshot.drafts),
@@ -142,9 +144,10 @@ class SQLiteArchiveStore:
                                      (str(archive_id),)).fetchone()[0]
             try:
                 document = json.loads(raw, object_pairs_hook=_unique_object)
-                if type(document.get("version")) is not int or document["version"] != 1:
+                if type(document.get("version")) is not int or document["version"] not in (1, 2):
                     raise RuntimeFailure("archive_version_unsupported", "快照版本不受支持，未恢复。")
                 snapshot = Snapshot.model_validate(document)
+                info = info.model_copy(update={'snapshot_version': snapshot.version})
                 if (snapshot.session.session_id != archive_id or
                     snapshot.session.revision != info.session_revision or
                     len(snapshot.session.messages) != info.message_count or

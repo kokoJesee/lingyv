@@ -3,10 +3,12 @@ from collections import deque
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from app.services.wearable_state import WearableState
+from app.services.understanding_state import UnderstandingState
 from app.agent.errors import RuntimeFailure
 from app.schemas.events import RuntimeEvent
 from app.schemas.draft import Draft
-from app.schemas.context import ContextManifest, DraftReference
+from app.schemas.context import ContextManifest, DraftReference, TurnDependencies
 from app.schemas.session import Session, SessionSummary
 from app.schemas.workflow import StopReason, WorkflowSnapshot
 
@@ -17,6 +19,8 @@ class OperationRecord:
     result: dict | None = None
     error: tuple[str, str, int] | None = None
     workflow: WorkflowSnapshot | None = None
+    dependencies: TurnDependencies | None = None
+    support_notice: dict | None = None
 
 
 @dataclass
@@ -28,10 +32,16 @@ class SessionRecord:
     drafts: dict[UUID, Draft] = field(default_factory=dict)
     events: deque[RuntimeEvent] = field(default_factory=lambda: deque(maxlen=200))
     active_task: asyncio.Task | None = None
+    active_request_id: UUID | None = None
     cancel_reason: StopReason | None = None
     lifecycle_pending: int = 0
     turn_sources: dict[int, list[DraftReference]] = field(default_factory=dict)
     last_context: ContextManifest | None = None
+    business_turn_sources: dict[int, TurnDependencies] = field(default_factory=dict)
+    support_mode: bool = False
+    support_route: str | None = None
+    wearables: WearableState = field(default_factory=WearableState)
+    understandings: UnderstandingState = field(default_factory=UnderstandingState)
 
 
 class SessionService:

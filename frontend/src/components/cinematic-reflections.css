@@ -259,3 +259,27 @@
   .cr-world *, .cr-world *::before, .cr-world *::after { animation: none !important; transition: none !important; }
   .cr-world .cr-word { opacity: 1 !important; transform: none !important; filter: none !important; }
 }
+
+/* Optional local journey storage stays folded below the original experience cards. */
+.cr-journey-archive { margin-top: 2rem; border-radius: 1rem; background: rgb(18 22 35 / 68%); }
+.cr-journey-archive > summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; list-style: none; cursor: pointer; }
+.cr-journey-archive > summary::-webkit-details-marker { display: none; }
+.cr-journey-archive > summary > span { display: grid; gap: .2rem; }
+.cr-journey-archive > summary strong { font-size: .95rem; font-weight: 550; }
+.cr-journey-archive > summary small { color: #aeb8cd; font-size: .75rem; line-height: 1.5; }
+.cr-journey-archive[open] > summary .cr-card-chevron { transform: rotate(180deg); }
+.cr-journey-archive-body { display: grid; gap: .85rem; padding: 1rem 1.1rem 1.2rem; border-top: 1px solid #ffffff16; }
+.cr-journey-archive-body > p { max-width: 54rem; color: #d5dcea; font-size: .82rem; line-height: 1.75; }
+.cr-journey-archive-body > .cr-journey-archive-note { color: #aeb8cd; font-size: .75rem; }
+.cr-journey-save-choice { display: flex; align-items: start; gap: .6rem; width: fit-content; color: #e4eafb; font-size: .8rem; line-height: 1.7; cursor: pointer; }
+.cr-journey-save-choice input { flex: 0 0 auto; margin-top: .25rem; accent-color: #c8e0f5; }
+.cr-journey-save-choice input:focus-visible { outline: 2px solid #c8e0f5; outline-offset: 4px; }
+.cr-journey-archive-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
+.cr-journey-archive .cr-button { min-height: 38px; padding: .42rem .8rem; color: #e1e9f9; font-size: .76rem; }
+.cr-journey-archive .cr-button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.cr-journey-archive-list { display: grid; gap: .6rem; margin: .2rem 0 0; padding: 0; list-style: none; }
+.cr-journey-archive-list > li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .7rem; padding-block: .8rem; border-top: 1px solid #ffffff12; }
+.cr-journey-archive-list > li > div:first-child { display: grid; gap: .25rem; }
+.cr-journey-archive-list strong { color: #e3eaf8; font-size: .82rem; font-weight: 500; }
+.cr-journey-archive-list small { color: #aeb8cd; font-size: .73rem; }
+.cr-journey-archive-body > .cr-journey-archive-error { color: #ffd3ce; }
