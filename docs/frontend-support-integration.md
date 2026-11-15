@@ -7,7 +7,7 @@
 无需真实 Key 的工程演示。在仓库根目录的终端 1 启动后端：
 
 ```bash
-PSYCHOLOGY_ENABLED=true PSYCHOLOGY_DEMO_MODE=true ASR_PROVIDER=disabled LIFESNAPS_REPLAY_CSV=reports/lifesnaps-v4/selected-wearable-daily.csv .venv/bin/python -B -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+PSYCHOLOGY_ENABLED=true PSYCHOLOGY_DEMO_MODE=true ASR_PROVIDER=disabled LIFESNAPS_REPLAY_CSV=examples/lifesnaps/selected-wearable-daily.csv .venv/bin/python -B -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 另开终端 2，在仓库根目录启动前端：
@@ -48,7 +48,7 @@ Windows PowerShell 可先设置 `$env:PSYCHOLOGY_ENABLED="true"`、`$env:PSYCHOL
 
 用途授权沿用 /wearables/consent，分别选择 local_analysis 和 model_context；导入不自动授权。/analysis 提供基线/近期中位数和不足原因。睡眠分钟换算小时，HRV 明确 RMSSD；入睡/醒来按趋势时区显示钟点并连续比较跨午夜变化。缺测保留空值、来源冲突不拼接。读取状态不等待模型锁，便于轮询和取消。
 
-正式数据演示使用四组 LifeSnaps v4 选样（LS01–LS04）。在启动本机固定脚本的同一条命令中设置 `LIFESNAPS_REPLAY_CSV=reports/lifesnaps-v4/selected-wearable-daily.csv`。打开「身心状态」，在「选择样本数据」选一组后直接载入 21 天趋势，并用于本机演示对话。切换时开启新旅程。「变量」只列出当前图表中有读数的指标。合成样本选择器供真实模型联调使用。
+正式数据演示使用四组 LifeSnaps v4 选样（LS01–LS04）。在启动本机固定脚本的同一条命令中设置 `LIFESNAPS_REPLAY_CSV=examples/lifesnaps/selected-wearable-daily.csv`。打开「身心状态」，在「选择样本数据」选一组后直接载入 21 天趋势，并用于本机演示对话。切换时开启新旅程。「变量」只列出当前图表中有读数的指标。合成样本选择器供真实模型联调使用。
 
 模拟样本选择器导入后仍可用，选择后点击「切换到所选样本」。替换保留原本的本机分析授权和指标范围，撤回用于对话的授权，使旧设备依赖失效；失败保留旧数据。未授权时可明确点击「允许本机展示模拟读数」。S04 默认查看最新的东京记录，可切换上海；默认选中当前时区最新有值的日期，其他时区日期留空。跨时区基线仍遵守原分析器的来源隔离，不拼出整段个人基线。
 
