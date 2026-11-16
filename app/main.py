@@ -35,14 +35,14 @@ from app.schemas.workflow import CancelWorkflowRequest, ConfirmWorkflowRequest
 from app.services.session_service import session_service
 from app.audio.routes import router as audio_router
 from app.audio.service import AudioService
-from app.api_memory import router as memory_router
+from app.api_memory import get_memory_service, router as memory_router
 from app.calls.scheduler import CallScheduler
 
 logger = logging.getLogger(__name__)
 
 
 def get_orchestrator() -> AgentOrchestrator:
-    return AgentOrchestrator(session_service)
+    return AgentOrchestrator(session_service, memory=get_memory_service())
 
 
 @asynccontextmanager
@@ -235,9 +235,15 @@ async def preview_context(session_id: UUID, request: SendMessageRequest):
             return prepare_support(record, session_service, request, get_settings())[2]
         if record.support_mode:
             raise RuntimeFailure("session_mode_conflict", "心理会话不可使用普通上下文预览。")
+        orchestrator = get_orchestrator()
+        selection = orchestrator.memory.select(request.content)
         return build_context(
             record.session, list(record.drafts.values()), record.turn_sources,
             request.content, request.request_id, get_settings().runtime_max_context_chars,
+            memories=selection.memories,
+            turn_memory_sources=record.turn_memory_sources,
+            valid_memory_refs=orchestrator.memory.active_references(),
+            excluded_memory_ids=selection.excluded_memory_ids,
         ).manifest
 
 

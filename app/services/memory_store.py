@@ -3,13 +3,19 @@
 One row per memory. Timestamps are stored as ISO-8601 strings so they survive
 round-trips without a custom adapter. Deletion clears the text and keeps a
 tombstone (status/deleted_at) used by dependency checks.
+
+Connections are opened per operation and always closed; the schema is created
+only on write paths, so read-only use of a missing database returns empty
+results instead of creating a file.
 """
 from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Iterator
 
 from app.schemas.memory import Memory
 
@@ -54,14 +60,24 @@ class MemoryStore:
     def __init__(self, path: Path | str):
         self.path = Path(path)
 
-    def _connect(self) -> sqlite3.Connection:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+    @contextmanager
+    def _connection(self, *, write: bool = False) -> Iterator[sqlite3.Connection | None]:
+        """Yield a closed-on-exit connection; reads on a missing file yield None."""
+        if not write and not self.path.exists():
+            yield None
+            return
+        if write:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.path, timeout=2, isolation_level=None)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.executescript(_CREATE)
-        connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            if write:
+                connection.execute("PRAGMA journal_mode=WAL")
+                connection.executescript(_CREATE)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            yield connection
+        finally:
+            connection.close()
 
     @staticmethod
     def _row_to_memory(row: sqlite3.Row) -> Memory:
@@ -88,7 +104,7 @@ class MemoryStore:
         )
 
     def insert(self, memory: Memory) -> None:
-        with self._connect() as connection:
+        with self._connection(write=True) as connection:
             connection.execute(
                 """INSERT INTO memory_items (memory_id, owner_id, kind, summary, text, importance,
                     source_json, status, revision, valid_from, valid_to, review_at, evidence_count,
@@ -105,7 +121,7 @@ class MemoryStore:
             )
 
     def save(self, memory: Memory) -> None:
-        with self._connect() as connection:
+        with self._connection(write=True) as connection:
             connection.execute(
                 """UPDATE memory_items SET kind=?, summary=?, text=?, importance=?, source_json=?,
                     status=?, revision=?, valid_from=?, valid_to=?, review_at=?, evidence_count=?,
@@ -122,31 +138,41 @@ class MemoryStore:
             )
 
     def get(self, memory_id: str, owner_id: str = "local") -> Memory | None:
-        if not self.path.exists():
-            return None
-        with self._connect() as connection:
+        with self._connection() as connection:
+            if connection is None:
+                return None
             row = connection.execute(
                 "SELECT * FROM memory_items WHERE memory_id=? AND owner_id=?", (memory_id, owner_id)
             ).fetchone()
         return self._row_to_memory(row) if row else None
 
     def list(self, owner_id: str = "local", status: str | None = None) -> list[Memory]:
-        if not self.path.exists():
-            return []
         query = "SELECT * FROM memory_items WHERE owner_id=?"
         params: list[object] = [owner_id]
         if status:
             query += " AND status=?"
             params.append(status)
         query += " ORDER BY updated_at DESC"
-        with self._connect() as connection:
+        with self._connection() as connection:
+            if connection is None:
+                return []
             rows = connection.execute(query, params).fetchall()
         return [self._row_to_memory(row) for row in rows]
+
+    def count_active(self, owner_id: str = "local") -> int:
+        with self._connection() as connection:
+            if connection is None:
+                return 0
+            row = connection.execute(
+                "SELECT COUNT(*) FROM memory_items WHERE owner_id=? AND status<>'deleted'",
+                (owner_id,),
+            ).fetchone()
+        return int(row[0])
 
     def touch(self, memory_ids: list[str], used_at: datetime, owner_id: str = "local") -> None:
         if not memory_ids:
             return
-        with self._connect() as connection:
+        with self._connection(write=True) as connection:
             for memory_id in memory_ids:
                 connection.execute(
                     "UPDATE memory_items SET use_count=use_count+1, last_used_at=? "
@@ -156,9 +182,7 @@ class MemoryStore:
 
     def purge_deleted(self, before: datetime, owner_id: str = "local") -> int:
         """Physically remove tombstones older than ``before``."""
-        if not self.path.exists():
-            return 0
-        with self._connect() as connection:
+        with self._connection(write=True) as connection:
             cursor = connection.execute(
                 "DELETE FROM memory_items WHERE owner_id=? AND status='deleted' AND deleted_at < ?",
                 (owner_id, _iso(before)),

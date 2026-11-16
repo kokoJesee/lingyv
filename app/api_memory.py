@@ -1,6 +1,8 @@
 """HTTP surface for long-term memory (L2 notes)."""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 
@@ -66,7 +68,7 @@ def export_memories(fmt: str = Query(default="markdown")):
         return JSONResponse(status_code=422, content={"detail": "fmt must be markdown or json"})
     payload = get_memory_service().export(fmt)
     if fmt == "json":
-        return JSONResponse(content=__import__("json").loads(payload))
+        return JSONResponse(content=json.loads(payload))
     return PlainTextResponse(content=payload)
 
 

@@ -16,7 +16,6 @@ from app.agent.errors import RuntimeFailure
 from app.config.settings import get_settings
 from app.schemas.memory import (
     MAX_SUMMARY_CHARS,
-    MAX_TEXT_CHARS,
     Memory,
     MemoryConfirmRequest,
     MemoryCreateRequest,
@@ -80,8 +79,7 @@ class MemoryService:
     # ---- writes ----------------------------------------------------------
     def create(self, request: MemoryCreateRequest, owner_id: str = "local") -> Memory:
         self._require_enabled()
-        existing = [m for m in self.store.list(owner_id) if m.status != "deleted"]
-        if len(existing) >= self.settings.memory_max_items:
+        if self.store.count_active(owner_id) >= self.settings.memory_max_items:
             raise RuntimeFailure("memory_limit_exceeded", "记忆条数已达上限，请先删除一些。", 409)
         now = self._now()
         summary = (request.summary or summarise(request.text)).strip()
@@ -189,7 +187,9 @@ class MemoryService:
         scored.sort(key=lambda pair: (pair[0], pair[1].updated_at), reverse=True)
         picked: list[Memory] = []
         budget = self.settings.memory_budget_chars
-        for _, memory in scored[:limit]:
+        for _, memory in scored:
+            if len(picked) >= limit:
+                break
             if len(memory.summary) > budget:
                 excluded.append(memory.memory_id)
                 continue

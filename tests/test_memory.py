@@ -198,3 +198,24 @@ def test_http_memory_routes(tmp_path, monkeypatch, client):
     assert client.post("/memories/propose").status_code == 501
     assert client.delete(f"/memories/{memory['memory_id']}").status_code == 204
     assert client.get("/memories").json()[0]["status"] == "deleted"
+def test_preview_shows_memory_without_calling_model(tmp_path, monkeypatch, client):
+    service = make_service(tmp_path)
+    monkeypatch.setattr(api_memory, "_service", service)
+    memory = confirmed(service, "在准备专业课期末考", summary="在准备期末考")
+    session_id = client.post("/sessions").json()["session_id"]
+    preview = client.post(
+        f"/sessions/{session_id}/context/preview",
+        json={"content": "这周期末考好累", "request_id": "11111111-1111-4111-8111-111111111111"},
+    )
+    assert preview.status_code == 200
+    manifest = preview.json()
+    assert [ref["memory_id"] for ref in manifest["memory_references"]] == [memory.memory_id]
+    assert any(source["kind"] == "long_term_memory" for source in manifest["sources"])
+
+
+def test_read_only_store_does_not_create_missing_file(tmp_path):
+    path = tmp_path / "absent.sqlite3"
+    store = MemoryStore(path)
+    assert store.list() == []
+    assert store.get("mem_missing") is None
+    assert not path.exists()
