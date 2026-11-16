@@ -219,3 +219,23 @@ def test_read_only_store_does_not_create_missing_file(tmp_path):
     assert store.list() == []
     assert store.get("mem_missing") is None
     assert not path.exists()
+def test_duplicate_memory_is_rejected_but_other_kinds_pass(tmp_path):
+    service = make_service(tmp_path)
+    service.create(MemoryCreateRequest(kind="preference", text="别问家里的事"))
+    with pytest.raises(Exception) as error:
+        service.create(MemoryCreateRequest(kind="preference", text="  别问家里的事  "))
+    assert error.value.code == "memory_duplicate"
+    # 同类文本换个 kind 允许：语义不同
+    service.create(MemoryCreateRequest(kind="fact", text="别问家里的事"))
+
+
+def test_http_detail_and_query_validation(tmp_path, monkeypatch, client):
+    service = make_service(tmp_path)
+    monkeypatch.setattr(api_memory, "_service", service)
+    created = client.post("/memories", json={"kind": "fact", "text": "在准备期末考"}).json()
+    detail = client.get(f"/memories/{created['memory_id']}")
+    assert detail.status_code == 200
+    assert detail.json()["memory_id"] == created["memory_id"]
+    assert client.get("/memories/mem_missing").status_code == 404
+    assert client.get("/memories?status=bogus").status_code == 422
+    assert client.get("/memories?kind=fact").status_code == 200

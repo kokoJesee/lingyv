@@ -11,6 +11,8 @@ from app.schemas.memory import (
     Memory,
     MemoryConfirmRequest,
     MemoryCreateRequest,
+    MemoryKind,
+    MemoryStatus,
     MemoryUpdateRequest,
 )
 from app.services.memory_service import MemoryService
@@ -34,16 +36,45 @@ def reset_memory_service(service: MemoryService | None = None) -> None:
 
 
 @router.get("/memories", response_model=list[Memory])
-def list_memories(status: str | None = Query(default=None), kind: str | None = Query(default=None)):
+def list_memories(
+    status: MemoryStatus | None = Query(default=None),
+    kind: MemoryKind | None = Query(default=None),
+):
     items = get_memory_service().list(status=status)
     if kind:
         items = [item for item in items if item.kind == kind]
     return items
 
 
+# 注意：固定路径要排在 /memories/{memory_id} 之前，否则会被当作 memory_id。
+@router.get("/memories/export")
+def export_memories(fmt: str = Query(default="markdown")):
+    if fmt not in {"markdown", "json"}:
+        return JSONResponse(status_code=422, content={"detail": "fmt must be markdown or json"})
+    payload = get_memory_service().export(fmt)
+    if fmt == "json":
+        return JSONResponse(content=json.loads(payload))
+    return PlainTextResponse(content=payload)
+
+
 @router.post("/memories", response_model=Memory, status_code=201)
 def create_memory(request: MemoryCreateRequest):
     return get_memory_service().create(request)
+
+
+@router.post("/memories/propose", status_code=501)
+def propose_memory():
+    """Reserved: candidates will come from the canvas confirmation screen."""
+    return JSONResponse(
+        status_code=501,
+        content={"detail": {"code": "memory_propose_not_implemented",
+                            "message": "从画布提议记忆要等画布对象接入后开放。"}},
+    )
+
+
+@router.get("/memories/{memory_id}", response_model=Memory)
+def get_memory(memory_id: str):
+    return get_memory_service().get(memory_id)
 
 
 @router.patch("/memories/{memory_id}", response_model=Memory)
@@ -60,23 +91,3 @@ def confirm_memory(memory_id: str, request: MemoryConfirmRequest):
 def delete_memory(memory_id: str):
     get_memory_service().delete(memory_id)
     return None
-
-
-@router.get("/memories/export")
-def export_memories(fmt: str = Query(default="markdown")):
-    if fmt not in {"markdown", "json"}:
-        return JSONResponse(status_code=422, content={"detail": "fmt must be markdown or json"})
-    payload = get_memory_service().export(fmt)
-    if fmt == "json":
-        return JSONResponse(content=json.loads(payload))
-    return PlainTextResponse(content=payload)
-
-
-@router.post("/memories/propose", status_code=501)
-def propose_memory():
-    """Reserved: candidates will come from the canvas confirmation screen."""
-    return JSONResponse(
-        status_code=501,
-        content={"detail": {"code": "memory_propose_not_implemented",
-                            "message": "从画布提议记忆要等画布对象接入后开放。"}},
-    )

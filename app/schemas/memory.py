@@ -11,7 +11,7 @@ MemoryStatus = Literal["proposed", "confirmed", "expired", "superseded", "delete
 MemorySourceType = Literal["user_stated", "manual", "canvas_confirmed", "archive_confirmed"]
 
 MAX_SUMMARY_CHARS = 50
-MAX_TEXT_CHARS = 400
+MAX_TEXT_CHARS = 2000  # hard request cap; the effective limit comes from settings
 MAX_IMPORTANCE = 5
 
 

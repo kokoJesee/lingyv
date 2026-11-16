@@ -81,18 +81,27 @@ class MemoryService:
         self._require_enabled()
         if self.store.count_active(owner_id) >= self.settings.memory_max_items:
             raise RuntimeFailure("memory_limit_exceeded", "记忆条数已达上限，请先删除一些。", 409)
+        cleaned = request.text.strip()
+        # 重复的手写条目直接拒绝：合并候选留给画布提议阶段的写入裁决。
+        for existing in self.store.list(owner_id):
+            if existing.status != "deleted" and existing.kind == request.kind and existing.text == cleaned:
+                raise RuntimeFailure(
+                    "memory_duplicate",
+                    f"已有一条相同的记忆：{existing.memory_id}",
+                    409,
+                )
         now = self._now()
-        summary = (request.summary or summarise(request.text)).strip()
+        summary = (request.summary or summarise(cleaned)).strip()
         if len(summary) > MAX_SUMMARY_CHARS:
             raise RuntimeFailure("memory_summary_invalid", "摘要过长。", 422)
-        if len(request.text) > self.settings.memory_max_text_chars:
+        if len(cleaned) > self.settings.memory_max_text_chars:
             raise RuntimeFailure("memory_text_invalid", "记忆正文过长。", 422)
         memory = Memory(
             memory_id=f"mem_{uuid4().hex[:12]}",
             owner_id=owner_id,
             kind=request.kind,
             summary=summary,
-            text=request.text.strip(),
+            text=cleaned,
             importance=request.importance,
             source=MemorySource(
                 type="manual" if request.session_id is None else "user_stated",
@@ -109,6 +118,9 @@ class MemoryService:
         )
         self.store.insert(memory)
         return memory
+
+    def get(self, memory_id: str, owner_id: str = "local") -> Memory:
+        return self._require(memory_id, owner_id)
 
     def confirm(self, memory_id: str, request: MemoryConfirmRequest, owner_id: str = "local") -> Memory:
         self._require_enabled()
