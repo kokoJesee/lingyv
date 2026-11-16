@@ -7,6 +7,7 @@ from app.agent.errors import RuntimeFailure
 from app.llm.prompts import PROMPT_VERSION, SYSTEM_PROMPT
 from app.schemas.context import ContextManifest, ContextSource, DraftReference
 from app.schemas.draft import Draft, DraftStatus
+from app.schemas.memory import Memory, MemoryReference
 from app.schemas.session import Message, Session
 
 
@@ -23,6 +24,11 @@ def build_context(
     content: str,
     request_id: UUID,
     max_characters: int,
+    *,
+    memories: Sequence[Memory] = (),
+    turn_memory_sources: Mapping[int, list[MemoryReference]] | None = None,
+    valid_memory_refs: set[tuple[str, int]] | None = None,
+    excluded_memory_ids: Sequence[str] = (),
 ) -> ContextBundle:
     # 只选择本会话当前、且确认版本完全匹配的草稿。
     confirmed = [
@@ -32,6 +38,7 @@ def build_context(
         and draft.confirmed_revision == draft.revision
     ]
     valid = {(draft.draft_id, draft.revision) for draft in confirmed}
+    memory_sources = turn_memory_sources or {}
     messages = []
     sources = [ContextSource(kind="system_prompt", model_message_index=0, role="system")]
     excluded = []
@@ -40,6 +47,13 @@ def build_context(
         if message.role == "assistant" and any(
             (dependency.draft_id, dependency.revision) not in valid
             for dependency in dependencies
+        ):
+            excluded.append(index)
+            continue
+        # 删除或改写记忆后，依赖旧版本的助手回复不再进入上下文。
+        if message.role == "assistant" and valid_memory_refs is not None and any(
+            (reference.memory_id, reference.revision) not in valid_memory_refs
+            for reference in memory_sources.get(index, [])
         ):
             excluded.append(index)
             continue
@@ -68,6 +82,30 @@ def build_context(
                 kind="confirmed_draft", model_message_index=len(messages), role="user",
                 draft_id=draft.draft_id, draft_revision=draft.revision,
             ))
+    if memories:
+        # 只喂摘要，且明确标为背景数据；完整正文留在设置页。
+        memory_block = {
+            "type": "user_long_term_memory",
+            "memories": [
+                {
+                    "memory_id": memory.memory_id,
+                    "kind": memory.kind,
+                    "summary": memory.summary,
+                    "importance": memory.importance,
+                }
+                for memory in memories
+            ],
+        }
+        messages.append(Message(
+            role="user",
+            content="以下 JSON 是用户确认过的长期记忆（只是背景，不要逐条复述）：\n"
+            + json.dumps(memory_block, ensure_ascii=False, sort_keys=True),
+        ))
+        for memory in memories:
+            sources.append(ContextSource(
+                kind="long_term_memory", model_message_index=len(messages), role="user",
+                source_id=memory.memory_id, memory_revision=memory.revision,
+            ))
     messages.append(Message(role="user", content=content))
     sources.append(ContextSource(
         kind="current_input", model_message_index=len(messages), role="user"
@@ -84,4 +122,9 @@ def build_context(
         session_revision=session.revision, request_id=request_id,
         model_message_count=len(messages) + 1, character_count=count,
         sources=sources, excluded_history_indices=excluded,
+        memory_references=[
+            MemoryReference(memory_id=memory.memory_id, revision=memory.revision)
+            for memory in memories
+        ],
+        excluded_memory_ids=list(excluded_memory_ids),
     ))

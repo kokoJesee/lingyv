@@ -25,16 +25,19 @@ from app.schemas.message import SendMessageRequest, SendMessageResponse
 from app.schemas.session import Message, Session, SessionState, SessionStatus
 from app.schemas.workflow import DemoDraft, StopReason, WorkflowPhase, WorkflowSnapshot
 from app.services.session_service import OperationRecord, SessionRecord, SessionService
+from app.services.memory_service import MemoryService
 from app.wearables.lifesnaps import PROVIDER as REPLAY_PROVIDER
 
 logger = logging.getLogger(__name__)
 
 
 class AgentOrchestrator:
-    def __init__(self, sessions: SessionService, settings: Settings | None = None):
+    def __init__(self, sessions: SessionService, settings: Settings | None = None,
+                 memory: MemoryService | None = None):
         self.sessions = sessions
         self.settings = settings or get_settings()
         self.engine = WorkflowEngine(self.settings.runtime_max_steps)
+        self.memory = memory or MemoryService(settings=self.settings)
 
     @staticmethod
     def _active(record: SessionRecord) -> None:
@@ -119,6 +122,7 @@ class AgentOrchestrator:
                 correction = None
                 psychology_response = None
                 dependencies = None
+                selection = None
                 if support:
                     builder, prepared, manifest, dependencies, correction = prepare_support(
                         record, self.sessions, request, self.settings)
@@ -135,9 +139,15 @@ class AgentOrchestrator:
                     builder.validate_current(prepared)
                     reply = psychology_response.result.reply
                 else:
+                    # 长期记忆只在普通聊天链路注入；心理流程的注入接缝随 Canvas 一起做。
+                    selection = self.memory.select(request.content)
                     bundle = build_context(
                         record.session, list(record.drafts.values()), record.turn_sources,
                         request.content, request.request_id, self.settings.runtime_max_context_chars,
+                        memories=selection.memories,
+                        turn_memory_sources=record.turn_memory_sources,
+                        valid_memory_refs=self.memory.active_references(),
+                        excluded_memory_ids=selection.excluded_memory_ids,
                     )
                     manifest = bundle.manifest
                     self.engine.advance(workflow, "model_call")
@@ -175,6 +185,13 @@ class AgentOrchestrator:
                 commit_correction(record, correction)
                 record.session.messages.extend([user_message, assistant])
                 record.turn_sources[assistant_index] = dependencies.draft_refs if support else manifest.draft_references()
+                if selection is not None:
+                    references = selection.references()
+                    record.turn_memory_sources[assistant_index] = references
+                    if references:
+                        self.memory.touch(references)
+                else:
+                    record.turn_memory_sources[assistant_index] = []
                 if support:
                     record.business_turn_sources[assistant_index] = dependencies.model_copy(deep=True)
                     operation.dependencies = dependencies.model_copy(deep=True)

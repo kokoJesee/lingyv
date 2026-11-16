@@ -2,6 +2,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from app.schemas.memory import MemoryReference
 from app.schemas.wearable import EvidenceReference
 
 
@@ -14,10 +15,11 @@ class TurnDependencies(BaseModel):
     wearable_revision: int | None = None
     understanding_refs: list[EvidenceReference] = Field(default_factory=list)
     draft_refs: list[DraftReference] = Field(default_factory=list)
+    memory_refs: list[MemoryReference] = Field(default_factory=list)
 
 
 class ContextSource(BaseModel):
-    kind: Literal["system_prompt", "history_message", "confirmed_draft", "current_input", "psychology_record"]
+    kind: Literal["system_prompt", "history_message", "confirmed_draft", "current_input", "psychology_record", "long_term_memory"]
     model_message_index: int
     source_id: str | None = None
     evidence_type: str | None = None
@@ -25,6 +27,7 @@ class ContextSource(BaseModel):
     role: str | None = None
     draft_id: UUID | None = None
     draft_revision: int | None = None
+    memory_revision: int | None = None
 
 
 class ContextManifest(BaseModel):
@@ -38,6 +41,8 @@ class ContextManifest(BaseModel):
     sources: list[ContextSource] = Field(default_factory=list)
     excluded_history_indices: list[int] = Field(default_factory=list)
     business_dependencies: TurnDependencies | None = None
+    memory_references: list[MemoryReference] = Field(default_factory=list)
+    excluded_memory_ids: list[str] = Field(default_factory=list)
 
     def draft_references(self) -> list[DraftReference]:
         return [

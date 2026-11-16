@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     runtime_max_context_chars: int = Field(default=48000, ge=1)
     runtime_max_requests_per_session: int = Field(default=500, ge=1, le=10000)
 
+    # Long-term memory (L2 notes). L1 confirmed records arrive with the canvas.
+    memory_enabled: bool = True
+    memory_db_path: Path = PROJECT_ROOT / "data/memories.sqlite3"
+    memory_max_items: int = Field(default=500, ge=1, le=10000)
+    memory_max_text_chars: int = Field(default=400, ge=1, le=2000)
+    memory_top_k: int = Field(default=5, ge=1, le=20)
+    memory_budget_chars: int = Field(default=800, ge=1, le=4000)
+    memory_decay: float = Field(default=0.9, gt=0, lt=1)
+    memory_relevance_floor: float = Field(default=0.05, ge=0, le=1)
+    memory_tombstone_days: int = Field(default=30, ge=1, le=3650)
+
     external_max_concurrent: int = Field(default=4, ge=1, le=100)
     external_max_queue: int = Field(default=16, ge=0, le=1000)
     external_queue_timeout_seconds: float = Field(default=5, gt=0, le=180)

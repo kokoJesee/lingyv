@@ -35,6 +35,7 @@ from app.schemas.workflow import CancelWorkflowRequest, ConfirmWorkflowRequest
 from app.services.session_service import session_service
 from app.audio.routes import router as audio_router
 from app.audio.service import AudioService
+from app.api_memory import router as memory_router
 from app.calls.scheduler import CallScheduler
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ app = FastAPI(
     version="0.7.0", lifespan=lifespan,
 )
 app.include_router(audio_router)
+app.include_router(memory_router)
 
 
 app.add_middleware(WearableUploadLimit)
