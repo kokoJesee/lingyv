@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Personal Emotional Agent",
     description="Personal Emotional Agent runtime: sessions, workflows and model calls.",
-    version="0.7.0", lifespan=lifespan,
+    version="0.8.0", lifespan=lifespan,
 )
 app.include_router(audio_router)
 app.include_router(memory_router)
