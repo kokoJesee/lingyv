@@ -26,6 +26,8 @@ from app.schemas.session import Message, Session, SessionState, SessionStatus
 from app.schemas.workflow import DemoDraft, StopReason, WorkflowPhase, WorkflowSnapshot
 from app.services.session_service import OperationRecord, SessionRecord, SessionService
 from app.services.memory_service import MemoryService
+from app.services.canvas_service import CanvasService
+from app.schemas.canvas import CanvasReference
 from app.wearables.lifesnaps import PROVIDER as REPLAY_PROVIDER
 
 logger = logging.getLogger(__name__)
@@ -33,11 +35,12 @@ logger = logging.getLogger(__name__)
 
 class AgentOrchestrator:
     def __init__(self, sessions: SessionService, settings: Settings | None = None,
-                 memory: MemoryService | None = None):
+                 memory: MemoryService | None = None, canvas: CanvasService | None = None):
         self.sessions = sessions
         self.settings = settings or get_settings()
         self.engine = WorkflowEngine(self.settings.runtime_max_steps)
         self.memory = memory or MemoryService(settings=self.settings)
+        self.canvas = canvas or CanvasService(settings=self.settings)
 
     @staticmethod
     def _active(record: SessionRecord) -> None:
@@ -123,6 +126,7 @@ class AgentOrchestrator:
                 psychology_response = None
                 dependencies = None
                 selection = None
+                current_canvas = None
                 if support:
                     builder, prepared, manifest, dependencies, correction = prepare_support(
                         record, self.sessions, request, self.settings)
@@ -139,8 +143,12 @@ class AgentOrchestrator:
                     builder.validate_current(prepared)
                     reply = psychology_response.result.reply
                 else:
-                    # 长期记忆只在普通聊天链路注入；心理流程的注入接缝随 Canvas 一起做。
+                    # 长期记忆与画布只在普通聊天链路注入；心理流程的接缝排到后面。
                     selection = self.memory.select(request.content)
+                    current_canvas = (
+                        self.canvas.latest_confirmed(str(session_id))
+                        if self.settings.canvas_enabled else None
+                    )
                     bundle = build_context(
                         record.session, list(record.drafts.values()), record.turn_sources,
                         request.content, request.request_id, self.settings.runtime_max_context_chars,
@@ -148,6 +156,11 @@ class AgentOrchestrator:
                         turn_memory_sources=record.turn_memory_sources,
                         valid_memory_refs=self.memory.active_references(),
                         excluded_memory_ids=selection.excluded_memory_ids,
+                        canvas=current_canvas,
+                        turn_canvas_sources=record.turn_canvas_sources,
+                        valid_canvas_refs=(
+                            self.canvas.active_references() if self.settings.canvas_enabled else None
+                        ),
                     )
                     manifest = bundle.manifest
                     self.engine.advance(workflow, "model_call")
@@ -192,6 +205,10 @@ class AgentOrchestrator:
                         self.memory.touch(references)
                 else:
                     record.turn_memory_sources[assistant_index] = []
+                record.turn_canvas_sources[assistant_index] = (
+                    [CanvasReference(canvas_id=current_canvas.canvas_id, revision=current_canvas.revision)]
+                    if current_canvas is not None else []
+                )
                 if support:
                     record.business_turn_sources[assistant_index] = dependencies.model_copy(deep=True)
                     operation.dependencies = dependencies.model_copy(deep=True)

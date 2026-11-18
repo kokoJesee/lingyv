@@ -303,3 +303,15 @@
 - 守卫：记忆关闭时写入返回 `memory_disabled`；超过条数上限返回 `memory_limit_exceeded`；版本冲突返回 `memory_revision_conflict`；编辑后状态回到 proposed，需重新确认。
 - 边界：L1 确认记录、画布确认触发的自动提议、导出到前端设置页仍在后续；不涉及向量检索、跨用户共享或模型训练。
 - 验证：新增 15 项记忆测试（选择/冲突/墓碑/预算/注入/HTTP），全项目 **651 项通过**，1 项既有 Starlette 弃用警告。真实模型调用为零。
+
+### 画布模块 M1（工程接入完成，起草接口预留）
+
+- 输入：空白画布（五栏 facts/interpretation/emotion/needs/unknown，允许全空）、逐条增改删、确认请求；确认带 `expected_revision` 与可选 `request_id`。
+- 输出：确认即冻结为一条记录（快照 + 日期 + 版本），再确认生成 v+1 并把旧记录标 `superseded`；按月/按天返回预览（主题、概要、卡片数）。
+- 归属：画布属于"这段经历"，不绑会话；`origin_session_id` 只做溯源，跨会话可继续改。
+- 加密：内容列 AES-256-GCM（`enc:v1:` 前缀 + `enc_key_id`），索引列明文；密钥缺失时拒绝工作，不静默降级。威胁模型写在设计文档里。
+- 敏感：确认与修改时做关键词扫描，命中返回 `sensitivity{level,categories}` 并提示，不阻断；不进长期记忆（记忆侧待接）。
+- 注入：普通聊天链路把最近确认的画布以 JSON 块注入，`source.kind="canvas"`，清单记 `canvas_reference`；画布改版后依赖旧版本的助手回复不再进上下文。
+- 预留：`/canvases/{id}/draft|cards`、`/records/{id}/append`、`/canvases/{id}/export`、`/personas` 返回 501；列表接口接受 `limit/cursor`（本期忽略 cursor）；`/health.modules` 暴露模块开关与 `schema_version`。
+- 迁移：存储层统一 `PRAGMA user_version` + 迁移阶梯；新库首写自动建表。
+- 验证：新增 39 项画布测试（状态机、幂等、版本裁决、加密往返、迁移、敏感、日/月视图、上下文注入与失效、HTTP）；全项目 **694 项通过**，未调用真实模型；加密落盘用 `strings` 核对无明文。

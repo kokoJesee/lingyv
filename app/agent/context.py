@@ -1,4 +1,4 @@
-import json
+﻿import json
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 from uuid import UUID
@@ -6,6 +6,7 @@ from uuid import UUID
 from app.agent.errors import RuntimeFailure
 from app.llm.prompts import PROMPT_VERSION, SYSTEM_PROMPT
 from app.schemas.context import ContextManifest, ContextSource, DraftReference
+from app.schemas.canvas import Canvas, CanvasReference
 from app.schemas.draft import Draft, DraftStatus
 from app.schemas.memory import Memory, MemoryReference
 from app.schemas.session import Message, Session
@@ -29,6 +30,9 @@ def build_context(
     turn_memory_sources: Mapping[int, list[MemoryReference]] | None = None,
     valid_memory_refs: set[tuple[str, int]] | None = None,
     excluded_memory_ids: Sequence[str] = (),
+    canvas: Canvas | None = None,
+    turn_canvas_sources: Mapping[int, list[CanvasReference]] | None = None,
+    valid_canvas_refs: set[tuple[str, int]] | None = None,
 ) -> ContextBundle:
     # 只选择本会话当前、且确认版本完全匹配的草稿。
     confirmed = [
@@ -39,6 +43,7 @@ def build_context(
     ]
     valid = {(draft.draft_id, draft.revision) for draft in confirmed}
     memory_sources = turn_memory_sources or {}
+    canvas_sources = turn_canvas_sources or {}
     messages = []
     sources = [ContextSource(kind="system_prompt", model_message_index=0, role="system")]
     excluded = []
@@ -54,6 +59,13 @@ def build_context(
         if message.role == "assistant" and valid_memory_refs is not None and any(
             (reference.memory_id, reference.revision) not in valid_memory_refs
             for reference in memory_sources.get(index, [])
+        ):
+            excluded.append(index)
+            continue
+        # 画布改版后，依赖旧版本的助手回复同样失效。
+        if message.role == "assistant" and valid_canvas_refs is not None and any(
+            (reference.canvas_id, reference.revision) not in valid_canvas_refs
+            for reference in canvas_sources.get(index, [])
         ):
             excluded.append(index)
             continue
@@ -82,6 +94,26 @@ def build_context(
                 kind="confirmed_draft", model_message_index=len(messages), role="user",
                 draft_id=draft.draft_id, draft_revision=draft.revision,
             ))
+    if canvas is not None and canvas.is_confirmed():
+        canvas_block = {
+            "type": "current_confirmed_canvas",
+            "canvas_id": canvas.canvas_id,
+            "revision": canvas.revision,
+            "lanes": {
+                lane: [{"text": entry.text, "source": entry.source} for entry in entries]
+                for lane, entries in canvas.lanes.items()
+            },
+            "note": canvas.note,
+        }
+        messages.append(Message(
+            role="user",
+            content="以下 JSON 是用户刚确认的这张画布（只作为背景，不要逐条复述）：\n"
+            + json.dumps(canvas_block, ensure_ascii=False, sort_keys=True),
+        ))
+        sources.append(ContextSource(
+            kind="canvas", model_message_index=len(messages), role="user",
+            source_id=canvas.canvas_id, canvas_revision=canvas.revision,
+        ))
     if memories:
         # 只喂摘要，且明确标为背景数据；完整正文留在设置页。
         memory_block = {
@@ -127,4 +159,8 @@ def build_context(
             for memory in memories
         ],
         excluded_memory_ids=list(excluded_memory_ids),
+        canvas_reference=(
+            CanvasReference(canvas_id=canvas.canvas_id, revision=canvas.revision)
+            if canvas is not None and canvas.is_confirmed() else None
+        ),
     ))

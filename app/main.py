@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from dataclasses import asdict
 from app.api_support import make_support_router
 from app.api_limits import WearableUploadLimit
@@ -36,13 +36,15 @@ from app.services.session_service import session_service
 from app.audio.routes import router as audio_router
 from app.audio.service import AudioService
 from app.api_memory import get_memory_service, router as memory_router
+from app.api_canvas import get_canvas_service, router as canvas_router
 from app.calls.scheduler import CallScheduler
 
 logger = logging.getLogger(__name__)
 
 
 def get_orchestrator() -> AgentOrchestrator:
-    return AgentOrchestrator(session_service, memory=get_memory_service())
+    return AgentOrchestrator(session_service, memory=get_memory_service(),
+                             canvas=get_canvas_service())
 
 
 @asynccontextmanager
@@ -66,10 +68,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Personal Emotional Agent",
     description="Personal Emotional Agent runtime: sessions, workflows and model calls.",
-    version="0.8.0", lifespan=lifespan,
+    version="0.9.0", lifespan=lifespan,
 )
 app.include_router(audio_router)
 app.include_router(memory_router)
+app.include_router(canvas_router)
 
 
 app.add_middleware(WearableUploadLimit)
@@ -112,6 +115,13 @@ async def health_check():
             "psychology_review_status": "unreviewed",
             "max_steps": settings.runtime_max_steps,
             "max_context_chars": settings.runtime_max_context_chars,
+        },
+        "modules": {
+            "memory": {"enabled": settings.memory_enabled, "schema_version": "memory.v1", "status": "partial"},
+            "canvas": {"enabled": settings.canvas_enabled, "schema_version": "canvas.v1",
+                       "encryption": settings.canvas_encryption, "status": "m1"},
+            "cards": {"enabled": False, "status": "reserved"},
+            "archive": {"enabled": True, "status": "existing"},
         },
     }
 
@@ -237,6 +247,7 @@ async def preview_context(session_id: UUID, request: SendMessageRequest):
             raise RuntimeFailure("session_mode_conflict", "心理会话不可使用普通上下文预览。")
         orchestrator = get_orchestrator()
         selection = orchestrator.memory.select(request.content)
+        current_canvas = orchestrator.canvas.latest_confirmed(str(session_id))
         return build_context(
             record.session, list(record.drafts.values()), record.turn_sources,
             request.content, request.request_id, get_settings().runtime_max_context_chars,
@@ -244,6 +255,9 @@ async def preview_context(session_id: UUID, request: SendMessageRequest):
             turn_memory_sources=record.turn_memory_sources,
             valid_memory_refs=orchestrator.memory.active_references(),
             excluded_memory_ids=selection.excluded_memory_ids,
+            canvas=current_canvas,
+            turn_canvas_sources=record.turn_canvas_sources,
+            valid_canvas_refs=orchestrator.canvas.active_references(),
         ).manifest
 
 

@@ -2,6 +2,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from app.schemas.canvas import CanvasReference
 from app.schemas.memory import MemoryReference
 from app.schemas.wearable import EvidenceReference
 
@@ -19,7 +20,7 @@ class TurnDependencies(BaseModel):
 
 
 class ContextSource(BaseModel):
-    kind: Literal["system_prompt", "history_message", "confirmed_draft", "current_input", "psychology_record", "long_term_memory"]
+    kind: Literal["system_prompt", "history_message", "confirmed_draft", "current_input", "psychology_record", "long_term_memory", "canvas"]
     model_message_index: int
     source_id: str | None = None
     evidence_type: str | None = None
@@ -28,6 +29,8 @@ class ContextSource(BaseModel):
     draft_id: UUID | None = None
     draft_revision: int | None = None
     memory_revision: int | None = None
+    canvas_id: str | None = None
+    canvas_revision: int | None = None
 
 
 class ContextManifest(BaseModel):
@@ -43,6 +46,7 @@ class ContextManifest(BaseModel):
     business_dependencies: TurnDependencies | None = None
     memory_references: list[MemoryReference] = Field(default_factory=list)
     excluded_memory_ids: list[str] = Field(default_factory=list)
+    canvas_reference: CanvasReference | None = None
 
     def draft_references(self) -> list[DraftReference]:
         return [

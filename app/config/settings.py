@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     memory_relevance_floor: float = Field(default=0.05, ge=0, le=1)
     memory_tombstone_days: int = Field(default=30, ge=1, le=3650)
 
+    # Canvas (M1). 画布属于"一段经历"，会话只做溯源。
+    canvas_enabled: bool = True
+    canvas_db_path: Path = PROJECT_ROOT / "data/canvases.sqlite3"
+    canvas_encryption: bool = True
+    canvas_key_path: Path = PROJECT_ROOT / "data/.canvas.key"
+    canvas_enc_key: SecretStr = SecretStr("")  # base64 of 32 bytes, for deployments
+    canvas_timezone: str = "Asia/Shanghai"
+    canvas_max_entries: int = Field(default=5, ge=1, le=20)
+    canvas_max_text_chars: int = Field(default=200, ge=1, le=2000)
+    canvas_max_total_chars: int = Field(default=1200, ge=100, le=20000)
+    canvas_draft_lock_seconds: int = Field(default=60, ge=5, le=600)
+    canvas_draft_profile: str = "shiguang"
+    canvas_sensitive_policy: Literal["warn", "block"] = "warn"
+
     external_max_concurrent: int = Field(default=4, ge=1, le=100)
     external_max_queue: int = Field(default=16, ge=0, le=1000)
     external_queue_timeout_seconds: float = Field(default=5, gt=0, le=180)

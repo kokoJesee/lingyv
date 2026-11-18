@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 from uuid import UUID
@@ -9,6 +9,7 @@ from app.agent.errors import RuntimeFailure
 from app.schemas.events import RuntimeEvent
 from app.schemas.draft import Draft
 from app.schemas.context import ContextManifest, DraftReference, TurnDependencies
+from app.schemas.canvas import CanvasReference
 from app.schemas.memory import MemoryReference
 from app.schemas.session import Session, SessionSummary
 from app.schemas.workflow import StopReason, WorkflowSnapshot
@@ -38,6 +39,7 @@ class SessionRecord:
     lifecycle_pending: int = 0
     turn_sources: dict[int, list[DraftReference]] = field(default_factory=dict)
     turn_memory_sources: dict[int, list[MemoryReference]] = field(default_factory=dict)
+    turn_canvas_sources: dict[int, list[CanvasReference]] = field(default_factory=dict)
     last_context: ContextManifest | None = None
     business_turn_sources: dict[int, TurnDependencies] = field(default_factory=dict)
     support_mode: bool = False
