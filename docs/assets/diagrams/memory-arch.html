@@ -1,0 +1,221 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --paper:#fbf3e2; --cream:#fff8f1; --ink:#3b2f24; --muted:#7a6650; --faint:#a89583;
+    --rose:#c9768c; --gold:#c9a87c; --line:rgba(150,125,95,.28);
+  }
+  body{ width:1680px; height:820px; background:#efe8dd; color:var(--ink);
+    font-family:"Microsoft YaHei","Segoe UI",sans-serif; padding:20px 24px; overflow:hidden; }
+  .title{ display:flex; align-items:baseline; gap:14px; margin-bottom:10px; }
+  .title b{ font-size:15px; } .title span{ font-size:11.5px; color:#8b8172; }
+
+  .band{ background:rgba(255,253,248,.72); border:1px solid #e6d6c1; border-radius:12px; padding:11px 14px; position:relative; }
+  .band .lab{ position:absolute; left:14px; top:-8px; background:#efe8dd; padding:0 8px;
+    font-size:8.5px; letter-spacing:.12em; color:#a89583; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ font-size:9.5px; border:1px solid #e6d6c1; background:#fffdf8; border-radius:999px; padding:3px 10px; }
+  .chip.hot{ border-color:rgba(201,120,140,.45); color:#a9586e; background:rgba(255,248,241,.95); }
+  .chip.gray{ color:#a89583; border-style:dashed; background:transparent; }
+  code{ font-family:Consolas,monospace; font-size:8.8px; background:#f6ecdb; border-radius:3px; padding:0 3px; }
+
+  .grid{ display:grid; gap:8px; }
+  .comp{ background:#fffdf8; border:1px solid #e6d6c1; border-radius:9px; padding:8px 10px; }
+  .comp b{ font-size:10.5px; display:block; font-family:"KaiTi",serif; font-weight:400; }
+  .comp span{ display:block; font-size:8.6px; color:#7a6650; line-height:1.55; margin-top:3px; }
+  .comp .tag{ display:inline-block; font-size:7.6px; color:#a9586e; background:rgba(201,120,140,.12);
+    border-radius:3px; padding:0 4px; margin-left:4px; vertical-align:1px; }
+  .comp.store{ background:rgba(255,248,241,.9); border-style:dashed; border-color:rgba(201,120,140,.4); }
+
+  .arrow{ display:flex; align-items:center; justify-content:center; gap:26px; height:26px; font-size:9px; color:#8b7a66; }
+  .arrow i{ font-style:normal; color:#c9b7a4; }
+
+  .side{ position:absolute; right:24px; top:96px; width:300px; }
+  .card{ background:#fff; border:1px solid #ded6c9; border-radius:11px; padding:10px 12px; margin-bottom:9px; }
+  .card h4{ font-size:9.5px; letter-spacing:.1em; color:#8b8172; margin-bottom:6px; }
+  .card p{ font-size:8.8px; line-height:1.65; color:#5f554a; }
+  .card b{ color:#3b2f24; }
+  .steps{ font-size:8.8px; line-height:1.8; color:#5f554a; }
+  .steps em{ font-style:normal; color:#c9b7a4; }
+
+  .main{ width:1300px; }
+  .foot{ position:absolute; left:24px; bottom:16px; font-size:9px; color:#8b7a66; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <b>长期记忆 · 模块内部架构</b>
+  <span>自下而上五层：触发 → 接入 → 服务 → 组件 → 存储；右侧是三条调用路径</span>
+</div>
+
+<div class="main">
+
+  <!-- 1 触发 -->
+  <div class="band" style="height:60px;">
+    <div class="lab">1 · 触发源</div>
+    <div class="chips">
+      <span class="chip hot">画布确认（唯一自动提取点）</span>
+      <span class="chip">存进成长档案</span>
+      <span class="chip">身心便签</span>
+      <span class="chip">补一颗星</span>
+      <span class="chip">每轮对话</span>
+      <span class="chip">设置页操作</span>
+      <span class="chip">从存档恢复</span>
+      <span class="chip gray">评测（只读）</span>
+    </div>
+  </div>
+
+  <div class="arrow"><span>↓ 写：确认/便签/补记</span><i>|</i><span>↑ 读：每轮对话</span><i>|</i><span>↓ 删：设置页</span></div>
+
+  <!-- 2 接入 -->
+  <div class="band" style="height:72px;">
+    <div class="lab">2 · 接入层（薄，只做校验与转发）</div>
+    <div class="chips">
+      <span class="chip"><code>POST /memories</code> 手写</span>
+      <span class="chip"><code>GET /memories</code> 列表</span>
+      <span class="chip"><code>PATCH /memories/{id}</code> 改（带 revision）</span>
+      <span class="chip"><code>POST /memories/{id}/confirm</code></span>
+      <span class="chip"><code>DELETE /memories/{id}</code></span>
+      <span class="chip"><code>POST /sessions/{id}/memories/propose</code></span>
+      <span class="chip"><code>GET /memories/export</code></span>
+      <span class="chip"><code>GET /records</code> 只读档案</span>
+      <span class="chip gray">501：import / merge / summarize</span>
+    </div>
+  </div>
+
+  <div class="arrow"><span>↓ 调用用例</span></div>
+
+  <!-- 3 服务层 -->
+  <div class="band" style="height:74px;">
+    <div class="lab">3 · 服务层 MemoryService（五个用例，别的模块只认这层）</div>
+    <div class="chips" style="margin-top:4px;">
+      <span class="chip hot">propose_from_canvas()</span>
+      <span class="chip hot">confirm(memory_id, revision)</span>
+      <span class="chip hot">select(session, topic, k≤5)</span>
+      <span class="chip hot">delete(memory_id)</span>
+      <span class="chip hot">export(format)</span>
+      <span class="chip gray">预留：import / merge / summarize</span>
+    </div>
+  </div>
+
+  <div class="arrow"><span>↓ 内部编排</span></div>
+
+  <!-- 4 组件层 -->
+  <div class="band" style="height:162px;">
+    <div class="lab">4 · 组件层（六件事，各自独立可测）</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr; margin-top:6px;">
+
+      <div class="comp">
+        <b>提取器 Extractor<span class="tag">写</span></b>
+        <span>读「本轮对话 + 刚确认的画布」，产出 0–3 条候选（kind / summary / text / importance / why）。输出必须过 schema，失败返回空，不猜。</span>
+      </div>
+
+      <div class="comp">
+        <b>写入裁决 Adjudicator<span class="tag">写</span></b>
+        <span>与已有条目比对，决定 <code>ADD / UPDATE / DELETE / NOOP</code>；事实类做矛盾合并，偏好类只判重。</span>
+      </div>
+
+      <div class="comp">
+        <b>守卫 Guards<span class="tag">全链路</span></b>
+        <span>四道闸：<code>extract</code>（安全路线不提取）、<code>inject</code>（恢复后敏感项不注入）、<code>display</code>（不进开场提示）、<code>export</code>（用户主动才导出）。</span>
+      </div>
+
+      <div class="comp">
+        <b>选择器 Selector<span class="tag">读</span></b>
+        <span>过滤（已确认/未过期/未删）→ 打分（最近用过 + 重要度 + 话题）→ 取前 k → 生成摘要块；不相关的返回空。</span>
+      </div>
+
+      <div class="comp">
+        <b>依赖回写 DependencyWriter<span class="tag">删</span></b>
+        <span>把「本轮用了哪几条 + 版本」写进 <code>TurnDependencies.memory_refs</code>；删除时据此剪掉旧回复与缓存。</span>
+      </div>
+
+      <div class="comp">
+        <b>导出器 Exporter<span class="tag">导出</span></b>
+        <span>markdown（人可读、能带走）/ JSON（可再导入）。导出不含墓碑与内部版本字段。</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow"><span>↓ 持久化</span></div>
+
+  <!-- 5 存储层 -->
+  <div class="band" style="height:96px;">
+    <div class="lab">5 · 存储层（一个文件，两张表）</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr; margin-top:6px;">
+      <div class="comp store"><b>memory_items · L2</b>
+        <span>条目 + 版本 + 时间窗（valid_from/to）+ 使用计数 + 墓碑。索引：(status,kind,last_used_at)、(status,valid_to)。</span></div>
+      <div class="comp store"><b>confirmed_records · L1</b>
+        <span>用户保存的档案记录（画布/卡片/便签/补记），按天索引，按需调取。</span></div>
+      <div class="comp store"><b>config / feature flags</b>
+        <span>上限（500 条 / 200 字）、k、decay、守卫开关、预留能力开闭。</span></div>
+    </div>
+  </div>
+
+  <div class="arrow"><span>↓ 依赖</span></div>
+
+  <!-- 6 外部 -->
+  <div class="band" style="height:54px;">
+    <div class="lab">6 · 外部依赖</div>
+    <div class="chips">
+      <span class="chip"><code>data/memories.sqlite3</code>（明文）</span>
+      <span class="chip">模型调用（经共享 <code>CallScheduler</code>，有超时与排队）</span>
+      <span class="chip">会话状态 <code>SessionRecord</code>（内存）</span>
+      <span class="chip">档案服务（读 L1）</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- 右侧 -->
+<div class="side">
+  <div class="card">
+    <h4>写路径</h4>
+    <div class="steps">
+      画布确认 <em>→</em> API <em>→</em> <b>extract 守卫</b> <em>→</em> 提取器 <em>→</em> 裁决 <em>→</em> 用户勾选 <em>→</em> 存储<br>
+      <span style="color:#a89583">安全路线时在第 3 步直接返回空</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>读路径</h4>
+    <div class="steps">
+      每轮 <em>→</em> 选择器 <em>→</em> 过滤 <em>→</em> 打分 <em>→</em> 取前 k <em>→</em> 摘要块 <em>→</em> <b>上下文</b> <em>→</em> 写回依赖<br>
+      <span style="color:#a89583">没有相关条目就返回空，不报错</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>删路径</h4>
+    <div class="steps">
+      设置页删 <em>→</em> 清正文留墓碑 <em>→</em> 找依赖 <em>→</em> 旧回复与缓存失效 <em>→</em> 30 天后清墓碑
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>三条内部原则</h4>
+    <p>
+      <b>窄接口</b>：只有服务层对外；组件层不许被别的模块直接 import。<br>
+      <b>乐观锁</b>：所有写操作带 <code>revision</code>，冲突返回 409。<br>
+      <b>失败不阻塞对话</b>：记忆读写异常 → 本轮不带记忆继续，记一条事件。
+    </p>
+  </div>
+
+  <div class="card">
+    <h4>配置就这几个</h4>
+    <p><code>MEMORY_MAX_ITEMS=500</code><br>
+       <code>MEMORY_MAX_TEXT_CHARS=200</code><br>
+       <code>MEMORY_TOP_K=5</code>　<code>MEMORY_DECAY=0.9</code><br>
+       <code>MEMORY_FLAGS={…}</code></p>
+  </div>
+</div>
+
+<div class="foot">说明：实线框=现在实现；灰色 chip=预留但先不实现（501 或字段先加）。</div>
+
+</body>
+</html>

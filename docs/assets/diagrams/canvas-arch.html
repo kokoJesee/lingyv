@@ -1,0 +1,161 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --paper:#fbf3e2; --cream:#fff8f1; --ink:#3b2f24; --muted:#7a6650; --faint:#a89583;
+    --rose:#c9768c; --gold:#c9a87c;
+  }
+  body{ width:1680px; height:790px; background:#efe8dd; color:var(--ink);
+    font-family:"Microsoft YaHei","Segoe UI",sans-serif; padding:22px 26px; overflow:hidden; position:relative; }
+  .title{ display:flex; align-items:baseline; gap:14px; }
+  .title b{ font-size:15px; } .title span{ font-size:11.5px; color:#8b8172; }
+
+  .step{ position:absolute; top:104px; height:176px; border-radius:14px; background:var(--paper);
+    border:1px solid #e6d6c1; box-shadow:0 10px 24px rgba(120,85,60,.10); padding:12px 14px; }
+  .step .no{ font-size:9px; letter-spacing:.14em; color:#b0957c; }
+  .step h4{ font-family:"KaiTi",serif; font-size:14.5px; font-weight:400; margin-top:2px; }
+  .step p{ margin-top:7px; font-size:9.5px; line-height:1.7; color:#6b5a46; }
+  .step .meta{ position:absolute; left:14px; right:14px; bottom:10px; font-size:8.5px; color:#a89583;
+    border-top:1px dashed rgba(150,125,95,.28); padding-top:6px; }
+  .new{ border-style:dashed; border-color:rgba(201,120,140,.6); background:rgba(255,248,241,.9); }
+  .chip{ display:inline-block; font-size:8px; border-radius:4px; padding:1px 5px; margin:3px 3px 0 0; }
+  .u{ background:rgba(201,120,140,.15); color:#a9586e; }
+  .i{ background:rgba(120,150,185,.15); color:#5b7290; }
+  .blank{ background:rgba(150,125,95,.10); color:#8b7a66; }
+
+  .down{ position:absolute; left:26px; top:342px; width:1628px; height:168px; border-radius:14px;
+    background:var(--paper); border:1px solid #e6d6c1; box-shadow:0 10px 24px rgba(120,85,60,.10);
+    padding:12px 18px; }
+  .down h4{ font-family:"KaiTi",serif; font-size:14px; font-weight:400; }
+  .down .sub{ font-size:8.5px; color:#a89583; margin-top:3px; }
+  .dt{ margin-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .dc{ background:rgba(255,255,255,.78); border:1px solid #eadbc8; border-radius:8px; padding:9px 11px; }
+  .dc b{ font-size:10px; display:block; }
+  .dc span{ display:block; font-size:8.5px; color:#8b7a66; line-height:1.55; margin-top:4px; }
+
+  .loop{ position:absolute; top:566px; height:88px; border-radius:12px; padding:11px 15px;
+    background:rgba(255,255,255,.66); border:1px dashed rgba(201,120,140,.55); }
+  .loop b{ font-size:10.5px; }
+  .loop span{ display:block; margin-top:4px; font-size:8.5px; color:#7a6650; line-height:1.6; }
+  .loop.gray{ border-color:rgba(150,125,95,.4); background:rgba(255,255,255,.5); }
+
+  svg{ position:absolute; inset:0; pointer-events:none; }
+  .alab{ position:absolute; font-size:8.5px; color:#7a6650; background:rgba(255,253,246,.95);
+    border:1px solid rgba(150,125,95,.25); border-radius:999px; padding:2px 7px; white-space:nowrap; }
+  .foot{ position:absolute; left:26px; right:26px; bottom:14px; border-top:1px solid rgba(150,125,95,.25);
+    padding-top:9px; font-size:9px; color:#8b7a66; display:flex; gap:18px; }
+  .foot b{ color:#3b2f24; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <b>画布 · 一段经历的完整生命周期</b>
+  <span>从空白纸到进档案；再改就是新版本，不是覆盖</span>
+</div>
+
+<svg viewBox="0 0 1680 900">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="6" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4" fill="none" stroke="rgba(140,112,80,.8)" stroke-width="1.3"/>
+    </marker>
+    <marker id="p" markerWidth="9" markerHeight="9" refX="6" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4" fill="none" stroke="rgba(190,110,132,.85)" stroke-width="1.3"/>
+    </marker>
+  </defs>
+
+  <!-- 步骤之间 -->
+  <path d="M320,192 L340,192" stroke="rgba(140,112,80,.75)" stroke-width="1.3" marker-end="url(#a)"/>
+  <path d="M634,192 L654,192" stroke="rgba(140,112,80,.75)" stroke-width="1.3" marker-end="url(#a)"/>
+  <path d="M948,192 L968,192" stroke="rgba(140,112,80,.75)" stroke-width="1.3" marker-end="url(#a)"/>
+  <path d="M1262,192 L1282,192" stroke="rgba(140,112,80,.75)" stroke-width="1.3" marker-end="url(#a)"/>
+
+  <!-- 05 → 下游 -->
+  <path d="M1430,280 L1430,342" stroke="rgba(190,110,132,.8)" stroke-width="1.7" marker-end="url(#p)"/>
+
+  <!-- 下游 → 两个分支说明 -->
+  <path d="M300,510 L300,566" stroke="rgba(150,125,95,.45)" stroke-width="1.2" stroke-dasharray="5 5" marker-end="url(#a)"/>
+  <path d="M980,510 L980,566" stroke="rgba(150,125,95,.45)" stroke-width="1.2" stroke-dasharray="5 5" marker-end="url(#a)"/>
+</svg>
+
+<!-- 01 -->
+<div class="step" style="left:26px; width:294px;">
+  <div class="no">01</div>
+  <h4>进入画布：一张空纸</h4>
+  <p>五栏 + 引导占位。可以先从任意一栏写，也可以先什么都不写。</p>
+  <p><span class="chip blank">还不知道：可以永远空着</span></p>
+  <div class="meta">用户动作 · 不强制填满</div>
+</div>
+
+<!-- 02 -->
+<div class="step new" style="left:340px; width:294px;">
+  <div class="no">02</div>
+  <h4>一键起草（可选）</h4>
+  <p>从这段对话生成候选；每条带出处、标「拾光猜的」；只填空栏。</p>
+  <p><span class="chip i">inferred</span><span class="chip blank">无出处 → 丢弃</span></p>
+  <div class="meta">M2 · M1 先返回 501</div>
+</div>
+
+<!-- 03 -->
+<div class="step" style="left:654px; width:294px;">
+  <div class="no">03</div>
+  <h4>用户改</h4>
+  <p>逐条增、改、删；改过的猜测转为「你原话」。每改一次 revision +1。</p>
+  <p><span class="chip u">user</span><span class="chip i">inferred</span></p>
+  <div class="meta">用户动作 · 顺手标来源</div>
+</div>
+
+<!-- 04 -->
+<div class="step" style="left:968px; width:294px;">
+  <div class="no">04</div>
+  <h4>收下这颗</h4>
+  <p>确认当前这一版；幂等键防双击。确认即冻结，之后看的就是这一版。</p>
+  <p><span class="chip blank">全空 → 拒绝确认</span></p>
+  <div class="meta">关键动作 · 唯一生效入口</div>
+</div>
+
+<!-- 05 -->
+<div class="step" style="left:1282px; width:294px;">
+  <div class="no">05</div>
+  <h4>写一条记录（v1）</h4>
+  <p>只读快照 + 日期 + 卡片位；内容加密落盘。记录进成长档案。</p>
+  <p><span class="chip u">snapshot</span><span class="chip blank">observed / recorded</span></p>
+  <div class="meta">系统动作 · 只写记录，不删画布</div>
+</div>
+
+<!-- 下游 -->
+<div class="down">
+  <h4>确认之后，这三处才开始引用它</h4>
+  <div class="sub">都引用 <code>canvas_id + revision</code>，不复制内容；改版后可失效、可重建。</div>
+  <div class="dt">
+    <div class="dc"><b>① 上下文注入</b><span>下一轮起，把确认版以 JSON 块注入，记 <code>source.kind="canvas"</code>；旧版本不再注入。</span></div>
+    <div class="dc"><b>② 成长档案 · 日视图</b><span>那天可能有多张画布：先出主题/概要预览，点进某张才展开完整画布。</span></div>
+    <div class="dc"><b>③ 记忆提议</b><span>只从 user 条目 + 被确认的猜测里提炼；敏感内容跳过；删记录不连带删记忆。</span></div>
+  </div>
+</div>
+
+<!-- 两个分支说明 -->
+<div class="loop" style="left:26px; width:860px;">
+  <b>再编辑 → 再确认 = 新版本</b>
+  <span>revision +1，记录 <code>v+1</code>；旧记录标 <code>superseded</code>。档案默认显示最新，历史可回看；卡片标「基于第 N 版」并给重建。</span>
+</div>
+<div class="loop gray" style="left:906px; width:748px;">
+  <b>删除 = 只软删记录</b>
+  <span>不削画布、不连带删记忆；依赖该版本的旧助手回复不再进上下文（复用 <code>prune_cached_results</code> 思路）。</span>
+</div>
+
+<div class="alab" style="left:1216px; top:300px; color:#a9586e;">确认后才有下游</div>
+<div class="alab" style="left:310px; top:524px;">再确认</div>
+<div class="alab" style="left:990px; top:524px;">删除</div>
+
+<div class="foot">
+  <span><b>一句话</b>：用户认可的那一版才生效，之后每一处引用都带着版本号</span>
+  <span><b>不做</b>：确认后静默改内容 · 让模型自己确认 · 把原始设备数据写进画布</span>
+  <span style="margin-left:auto; color:#a9586e;">红线：不点头不算数 · 猜的要标来源 · 改版不覆盖历史</span>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,186 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --paper:#fbf3e2; --cream:#fff8f1; --ink:#3b2f24; --muted:#7a6650; --faint:#a89583;
+    --rose:#c9768c; --gold:#c9a87c; --line:rgba(150,125,95,.30);
+  }
+  body{ width:1680px; height:1000px; background:#efe8dd; color:var(--ink);
+    font-family:"Microsoft YaHei","Segoe UI",sans-serif; padding:22px 24px; overflow:hidden; position:relative; }
+  .title{ display:flex; align-items:baseline; gap:14px; }
+  .title b{ font-size:15px; } .title span{ font-size:11.5px; color:#8b8172; }
+  .legend{ position:absolute; right:26px; top:22px; display:flex; gap:12px; font-size:10px; color:#8b7a66; }
+  .legend i{ display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:-2px; }
+
+  .box{ position:absolute; border-radius:12px; padding:11px 13px; background:var(--paper);
+    border:1px solid #e6d6c1; box-shadow:0 8px 20px rgba(120,85,60,.10); }
+  .box h4{ font-size:12.5px; font-family:"KaiTi",serif; font-weight:400; }
+  .box p{ margin-top:5px; font-size:9.5px; line-height:1.6; color:#6b5a46; }
+  .box small{ display:block; margin-top:5px; font-size:8.5px; color:#a89583; }
+  .new{ border:1.4px dashed rgba(201,120,140,.65); background:rgba(255,248,241,.92); }
+  .off{ border:1.4px dashed rgba(150,125,95,.35); background:rgba(255,255,255,.45); color:#a89583; }
+  .off h4{ color:#a89583; }
+
+  .hub{ position:absolute; left:600px; top:346px; width:480px; height:262px; border-radius:16px;
+    background:radial-gradient(90% 70% at 50% 0%, #fff8ef, #fbf3e2 70%);
+    border:1.6px solid rgba(201,120,140,.55); box-shadow:0 16px 36px rgba(120,85,60,.16); padding:14px 16px; }
+  .hub .hd{ display:flex; align-items:baseline; gap:8px; }
+  .hub .hd b{ font-family:"KaiTi",serif; font-size:17px; font-weight:400; }
+  .hub .hd span{ font-size:8.5px; color:#b0957c; letter-spacing:.08em; }
+  .parts{ margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .part{ background:rgba(255,255,255,.75); border:1px solid #eadbc8; border-radius:8px; padding:7px 9px; }
+  .part b{ font-size:10.5px; display:block; }
+  .part span{ font-size:8.5px; color:#8b7a66; line-height:1.55; display:block; margin-top:3px; }
+  .store{ margin-top:8px; border-top:1px dashed rgba(150,125,95,.3); padding-top:7px; display:flex; gap:8px; font-size:8.5px; color:#6b5a46; }
+  .store i{ font-style:normal; background:#fff; border:1px solid #e6d6c1; border-radius:999px; padding:2px 8px; }
+
+  .alab{ position:absolute; font-size:9px; color:#7a6650; background:rgba(255,253,246,.92);
+    border:1px solid rgba(150,125,95,.25); border-radius:999px; padding:2px 8px; white-space:nowrap; }
+  svg{ position:absolute; inset:0; pointer-events:none; }
+
+  .foot{ position:absolute; left:24px; right:24px; bottom:18px; border-top:1px solid rgba(150,125,95,.25);
+    padding-top:10px; font-size:9.5px; color:#8b7a66; display:flex; gap:16px; }
+  .foot b{ color:#3b2f24; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <b>长期记忆 · 与项目全景的联动</b>
+  <span>中间是记忆模块，四周是它会打交道的部分；实线=已存在路径，虚线=这轮要新建</span>
+</div>
+<div class="legend">
+  <span><i style="background:#fbf3e2;border:1px solid #e6d6c1"></i>已存在</span>
+  <span><i style="background:#fff8f1;border:1.4px dashed rgba(201,120,140,.65)"></i>待建</span>
+  <span><i style="background:rgba(255,255,255,.5);border:1.4px dashed rgba(150,125,95,.35)"></i>明确不连</span>
+</div>
+
+<!-- 连线 -->
+<svg viewBox="0 0 1680 1000">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(140,112,80,.75)" stroke-width="1.3"/>
+    </marker>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(190,110,132,.8)" stroke-width="1.3"/>
+    </marker>
+  </defs>
+
+  <!-- 编排 ↔ 记忆 -->
+  <path d="M362,178 C470,220 540,300 596,392" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M600,300 C520,250 440,210 380,196" fill="none" stroke="rgba(190,110,132,.6)" stroke-width="1.2" stroke-dasharray="5 5" marker-end="url(#arr)"/>
+
+  <!-- 画布 → 记忆 -->
+  <path d="M730,168 L730,342" fill="none" stroke="rgba(190,110,132,.75)" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- 记忆 → 档案 -->
+  <path d="M1084,404 C1130,360 1150,300 1176,242" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- 设置页 ↔ 记忆 -->
+  <path d="M1328,452 L1084,468" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- 删改 → 剪枝 -->
+  <path d="M1046,600 C1100,660 1120,700 1136,716" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- 安全路线 → 记忆（守卫） -->
+  <path d="M392,742 C480,720 560,660 636,606" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- 记忆 → 上下文 -->
+  <path d="M730,610 L730,786" fill="none" stroke="rgba(190,110,132,.7)" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <!-- 不连：身心状态（灰） -->
+  <path d="M258,470 L300,470" fill="none" stroke="rgba(150,125,95,.35)" stroke-width="1.4" stroke-dasharray="5 5"/>
+</svg>
+
+<!-- 编排 -->
+<div class="box" style="left:110px; top:96px; width:252px;">
+  <h4>拾光对话 · 编排层</h4>
+  <p><code>orchestrator</code> + <code>support_context</code>：组上下文、调模型、提交、失败回滚。</p>
+  <small>已存在 · 每轮必经</small>
+</div>
+
+<!-- 画布 -->
+<div class="box new" style="left:596px; top:52px; width:268px;">
+  <h4>心象画布 · 确认</h4>
+  <p>用户点「收下这颗」的那一刻，是记忆的唯一提取时机。</p>
+  <small>待建：Canvas 对象 + 确认接口</small>
+</div>
+
+<!-- 档案 -->
+<div class="box new" style="left:1146px; top:96px; width:280px;">
+  <h4>成长档案 · 心象地图</h4>
+  <p>按月看保存过的日子；节点概览可以用记忆里的"那一阵子在做什么"。</p>
+  <small>待建：按天记录 + 地图</small>
+</div>
+
+<!-- 设置页 -->
+<div class="box new" style="left:1330px; top:404px; width:236px;">
+  <h4>设置页 · 一叠便签</h4>
+  <p>看、改、删、导出、总开关。删除会触发依赖失效。</p>
+  <small>待建：前端页面 + 4 个接口</small>
+</div>
+
+<!-- 剪枝 -->
+<div class="box" style="left:1120px; top:706px; width:300px;">
+  <h4>旧回复剪枝</h4>
+  <p><code>prune_cached_results</code>：依赖被删记忆的助手回复，不再进上下文、缓存作废。</p>
+  <small>已存在机制 · 加 memory_refs 即可复用</small>
+</div>
+
+<!-- 安全路线 -->
+<div class="box" style="left:112px; top:700px; width:282px;">
+  <h4>安全路线（route）</h4>
+  <p>澄清安全 / 安全支持 / 紧急现实帮助 —— 这几轮<strong>一条记忆都不提取</strong>。</p>
+  <small>已存在 · 用现有 route 判断</small>
+</div>
+
+<!-- 身心状态（不连） -->
+<div class="box off" style="left:52px; top:418px; width:206px;">
+  <h4>身心状态</h4>
+  <p>设备摘要只进上下文，<strong>不进记忆</strong>：数值会变，不该被当成"关于我"的稳定信息。</p>
+  <small>✕ 不连</small>
+</div>
+
+<!-- 上下文/模型 -->
+<div class="box" style="left:580px; top:790px; width:300px;">
+  <h4>上下文 → 模型</h4>
+  <p>记忆以 <code>user</code> 角色 JSON 块注入，和"已确认草稿"同一位置；每轮最多 5 条摘要。</p>
+  <small>已存在构建位置 · 加一个块</small>
+</div>
+
+<!-- 中心：记忆模块 -->
+<div class="hub">
+  <div class="hd"><b>长期记忆</b><span>L1 确认库 + L2 便签</span></div>
+  <div class="parts">
+    <div class="part"><b>提取器</b><span>确认画布时提 0–3 条；先做写入裁决（新增/更新/删除/跳过）</span></div>
+    <div class="part"><b>选择器</b><span>过滤 → 三项打分（最近用过/重要度/话题）→ 取前 5 条摘要</span></div>
+    <div class="part"><b>守卫</b><span>法律层不许写；风险层只能手写；安全路线不提取；恢复后不自动注入</span></div>
+    <div class="part"><b>失效</b><span>valid_to 到期不再注入；删除清正文留墓碑，回写依赖</span></div>
+  </div>
+  <div class="store">
+    <i>L2 memories（≤5 注入）</i><i>L1 records（按需调取）</i><i>data/memories.sqlite3</i>
+  </div>
+</div>
+
+<!-- 连线标签 -->
+<div class="alab" style="left:392px; top:268px;">每轮注入 ≤5 条摘要</div>
+<div class="alab" style="left:404px; top:220px; color:#a9586e;">回写"本轮用了哪几条"</div>
+<div class="alab" style="left:742px; top:246px;">确认 → 写 L1 + 提议 L2</div>
+<div class="alab" style="left:1112px; top:296px;">按需调取（≤2 条）</div>
+<div class="alab" style="left:1128px; top:410px;">增删改 / 导出 / 总开关</div>
+<div class="alab" style="left:1064px; top:664px;">删改 → 依赖失效</div>
+<div class="alab" style="left:430px; top:668px;">这几轮不提取</div>
+<div class="alab" style="left:742px; top:700px;">摘要进上下文</div>
+
+<div class="foot">
+  <span><b>读</b>：编排层每轮调选择器，取 ≤5 条摘要</span>
+  <span><b>写</b>：档案有四处保存；<b>记忆只在确认画布时自动提议</b></span>
+  <span><b>断</b>：设备数据不进记忆；档案与记忆互相独立</span>
+  <span style="margin-left:auto; color:#a9586e;">红线：不点头不算数 · 说删就真删 · 默认可关</span>
+</div>
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-﻿# 清华-腾讯S-Makers向善创客计划青少年心理平台\*翎语
+# 清华-腾讯S-Makers向善创客计划青少年心理平台\*翎语
 
 ![翎语 · 心象宇宙封面](docs/assets/cover.png)
 
@@ -72,6 +72,10 @@ npm run dev
 
 ## 最近交付与验证
 
+- **2026-11-18 · 设计文档入仓**。画布、长期记忆、接口预留三份设计文档和六张示意图同步到 `docs/`，图和可编辑的 HTML 源文件在 `docs/assets/diagrams/`。设计文档里的平台级取舍（如"画布属于一段经历、不绑会话"）与实现分开记录，便于评审。没有代码变更。
+
+- **2026-11-18 · 画布 M1**。新增画布对象：五栏 + 留白 + 逐条来源、按版本修改、确认即冻结；确认写一条日记录，再确认生成 v+1 并把旧记录标 `superseded`；按天/按月取预览；普通聊天链路注入最近确认的画布并在清单里记 `canvas_reference`，画布改版后依赖旧版本的助手回复不再进上下文。内容列 AES-256-GCM 加密（密钥缺失拒绝工作），敏感内容只做非阻断提示；起草/卡片/导出等 5 个端点返回 501 预留，`/health.modules` 暴露模块状态。后端 **694 项测试通过**（新增 39 项画布测试），未调用真实模型。
+
 - **2026-11-17 · 长期记忆 L2**。新增记忆条目的增删改查与确认、每轮至多 5 条摘要的上下文注入、`context_manifest` 里的引用与排除记录，以及删除后依赖旧版本的助手回复失效。L1 记录库、心理模式链路的注入和画布确认时的自动提议留到后续。后端 **655 项测试通过**（新增 19 项记忆测试），未调用真实模型；实现在 `app/schemas/memory.py`、`app/services/memory_service.py`、`app/api_memory.py`，配置与模块记录见 [开发步骤](docs/development.md)。
 
 - **2026-11-16 · Windows 可复现性修复**。`requirements.txt` 补 `tzdata`，测试读取文件改为显式 UTF-8。修复前 Windows 上穿戴分析、LifeSnaps 回放直接报 `ZoneInfoNotFoundError`，另有 12 项测试因默认 GBK 解码失败；修复后默认 `pytest` 即为 636 项通过。macOS/Linux 行为不变。
@@ -89,6 +93,18 @@ npm run dev
 完整回归环境为 Windows / Python 3.13.5，新增语音测试也在 Python 3.12.13 通过。心理质量与专业安全效果等待相应业务评审和评测。
 
 模块记录见 [开发步骤与进度](docs/development.md)，语音操作见 [语音输入说明](docs/voice-input.md)，心理对接见 [心理模块接口草案](docs/psychology-interface.md)。
+
+## 设计文档
+
+正在开发的模块各有一份设计与取舍记录，先看结论、再看附录：
+
+| 文档 | 内容 | 状态 |
+|---|---|---|
+| [画布设计](docs/canvas-design.md) | 画布对象、五栏与留白、确认与版本裁决、加密与敏感提示、接口与预留位 | M1 已实现 |
+| [长期记忆设计](docs/long-term-memory.md) | 两层记忆（记录库 / 便签）、四类便签、打分与失效、敏感三层、账号预留 | L2 已实现 |
+| [接口预留清单](docs/api-reservations.md) | 还没定模块的字段、端点、事件、迁移器与开关预留，避免以后破坏性改动 | 已写入规划 |
+
+三份文档的示意图在 [docs/assets/diagrams](docs/assets/diagrams)（PNG 可直接看，HTML 可在浏览器打开、也能改）。
 
 ## 首次运行（Windows PowerShell）
 

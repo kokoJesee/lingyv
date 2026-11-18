@@ -1,0 +1,279 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --paper:#fbf3e2; --cream:#fff8f1; --ink:#3b2f24; --muted:#7a6650; --faint:#a89583;
+    --rose:#c9768c; --gold:#c9a87c; --line:rgba(150,125,95,.30);
+  }
+  body{ width:1680px; height:1050px; background:#efe8dd; color:var(--ink);
+    font-family:"Microsoft YaHei","Segoe UI",sans-serif; padding:22px 24px; overflow:hidden; position:relative; }
+  .title{ display:flex; align-items:baseline; gap:14px; }
+  .title b{ font-size:15px; } .title span{ font-size:11.5px; color:#8b8172; }
+
+  .col-title{ position:absolute; font-size:9.5px; letter-spacing:.14em; color:#a89583; }
+
+  /* 左：模块 */
+  .mod{ position:absolute; width:392px; border-radius:10px; padding:9px 11px; background:var(--paper);
+    border:1px solid #e6d6c1; box-shadow:0 5px 14px rgba(120,85,60,.08); display:flex; gap:9px; align-items:flex-start; }
+  .mod .ico{ flex:0 0 auto; width:22px; height:22px; border-radius:6px; background:#fff; border:1px solid #e6d6c1;
+    display:grid; place-items:center; font-size:9px; color:#b0957c; margin-top:1px; }
+  .mod b{ font-size:11.5px; font-family:"KaiTi",serif; font-weight:400; display:block; }
+  .mod span{ display:block; font-size:8.8px; color:#7a6650; line-height:1.55; margin-top:2px; }
+  .mod .verb{ float:right; font-size:7.5px; border-radius:999px; padding:1px 6px; margin-left:6px;
+    background:rgba(201,120,140,.14); color:#a9586e; }
+  .mod.off{ border-style:dashed; border-color:rgba(150,125,95,.4); background:rgba(255,255,255,.5); }
+  .mod.off b, .mod.off span{ color:#a89583; }
+  .mod.new{ border-style:dashed; border-color:rgba(201,120,140,.55); }
+
+  /* 中：模块本体 */
+  .hub{ position:absolute; left:520px; top:96px; width:470px; height:700px; border-radius:16px;
+    background:radial-gradient(90% 60% at 50% 0%, #fff8ef, #fbf3e2 70%);
+    border:1.6px solid rgba(201,120,140,.5); box-shadow:0 16px 36px rgba(120,85,60,.14); padding:14px 16px; }
+  .hub h3{ font-family:"KaiTi",serif; font-size:17px; font-weight:400; }
+  .hub h3 span{ font-size:8.5px; color:#b0957c; letter-spacing:.08em; margin-left:6px; }
+  .sect{ margin-top:12px; }
+  .sect .lab{ font-size:8.5px; letter-spacing:.1em; color:#a89583; margin-bottom:6px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:5px; }
+  .chip{ font-size:8.8px; border:1px solid #e6d6c1; background:#fffdf8; border-radius:999px; padding:3px 9px; }
+  .chip.hot{ border-color:rgba(201,120,140,.45); color:#a9586e; background:rgba(255,248,241,.9); }
+  .chip.ghost{ border-style:dashed; color:#a89583; background:transparent; }
+  .store{ margin-top:14px; border-top:1px dashed rgba(150,125,95,.3); padding-top:9px; font-size:8.8px; color:#6b5a46; }
+  .store i{ font-style:normal; background:#fff; border:1px solid #e6d6c1; border-radius:999px; padding:2px 8px; margin-right:5px; }
+  .note{ margin-top:9px; font-size:8.5px; color:#a89583; line-height:1.6; }
+  .flow{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; font-size:8.6px; color:#5b4a38; }
+  .flow span{ background:rgba(255,255,255,.8); border:1px solid #eadbc8; border-radius:6px; padding:3px 6px; line-height:1.5; }
+  .flow i{ font-style:normal; color:#c9b7a4; font-size:9px; }
+  .flow em{ font-style:normal; color:#a89583; font-size:7.6px; }
+
+  /* 右：接口表 */
+  .panel{ position:absolute; left:1030px; top:96px; width:626px; }
+  .card{ background:#fff; border:1px solid #ded6c9; border-radius:12px; padding:12px 14px; margin-bottom:11px; }
+  .card h4{ font-size:10px; letter-spacing:.1em; color:#8b8172; margin-bottom:7px; }
+  table{ width:100%; border-collapse:collapse; font-size:9.2px; }
+  td, th{ text-align:left; padding:4px 6px; border-bottom:1px solid #f0e8db; vertical-align:top; }
+  th{ color:#a89583; font-weight:400; font-size:8.5px; }
+  code{ font-family:Consolas,monospace; font-size:8.8px; background:#f6ecdb; border-radius:3px; padding:0 3px; }
+  .st{ color:#2f6b4f; } .rs{ color:#a9586e; } .no{ color:#a89583; }
+
+  svg path{ fill:none; }
+  .foot{ position:absolute; left:24px; right:24px; bottom:18px; border-top:1px solid rgba(150,125,95,.25);
+    padding-top:10px; font-size:9.5px; color:#8b7a66; display:flex; gap:18px; }
+  .foot b{ color:#3b2f24; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <b>长期记忆 · 接口与模块联动</b>
+  <span>左边是可能跟它打交道的模块，中间是模块本身（哪些接口已经定、哪些先留空），右边是对外契约</span>
+</div>
+
+<div class="col-title" style="left:40px; top:70px;">会跟记忆打交道的模块（按确认程度标灰）</div>
+<div class="col-title" style="left:520px; top:72px;">模块本身</div>
+<div class="col-title" style="left:1030px; top:72px;">对外契约</div>
+
+<!-- ===== 左：模块 ===== -->
+<div class="mod new" style="left:40px; top:96px;">
+  <div class="ico">画</div>
+  <div><b>心象画布 · 确认<span class="verb">写入</span></b>
+    <span>点「收下这颗」时调 <code>propose_from_canvas()</code>，落 L1 并提议 L2。</span></div>
+</div>
+
+<div class="mod new" style="left:40px; top:186px;">
+  <div class="ico">卡</div>
+  <div><b>K/R/N 卡片<span class="verb">预留</span></b>
+    <span>卡片确认完成后若有"策略"可提议；现在不接，留 <code>on_cards_confirmed</code> 挂点。</span></div>
+</div>
+
+<div class="mod off" style="left:40px; top:276px;">
+  <div class="ico">天</div>
+  <div><b>天记录 / 便签<span class="verb">同源</span></b>
+    <span>L1 本身来自画布确认，天记录只是按天展示；不额外写入记忆。</span></div>
+</div>
+
+<div class="mod off" style="left:40px; top:366px;">
+  <div class="ico">解</div>
+  <div><b>理解条目（understanding）<span class="verb">待定</span></b>
+    <span>已确认理解能不能当"事实"来源？先留 <code>source.type=understanding</code>，不启用。</span></div>
+</div>
+
+<div class="mod" style="left:40px; top:456px;">
+  <div class="ico">安</div>
+  <div><b>安全路线<span class="verb">拦截</span></b>
+    <span>route 是澄清安全/安全支持/紧急现实帮助时，<code>extract_guard</code> 直接跳过。</span></div>
+</div>
+
+<div class="mod" style="left:40px; top:546px;">
+  <div class="ico">档</div>
+  <div><b>存档 / 恢复<span class="verb">双向</span></b>
+    <span>导出时带上记忆；恢复后 <code>inject_guard</code> 让敏感项先不注入。</span></div>
+</div>
+
+<div class="mod new" style="left:40px; top:636px;">
+  <div class="ico">人</div>
+  <div><b>拾光人设 / 提示词<span class="verb">预留</span></b>
+    <span>换人设时提示"旧记忆是在旧人设下形成的"；先只记录 <code>persona_version</code>。</span></div>
+</div>
+
+<div class="mod off" style="left:40px; top:726px;">
+  <div class="ico">测</div>
+  <div><b>评测 / 数据分析<span class="verb">只读</span></b>
+    <span>只走只读快照，不允许写；避免评测数据污染真实记忆。</span></div>
+</div>
+
+<div class="mod off" style="left:40px; top:816px; width:392px;">
+  <div class="ico">身</div>
+  <div><b>身心状态（设备数据）<span class="verb">不连</span></b>
+    <span>设备摘要只进上下文，不进记忆——数值会变，不是"关于我"的稳定信息。</span></div>
+</div>
+
+<!-- ===== 中：模块 ===== -->
+<div class="hub">
+  <h3>长期记忆 <span>MEMORY MODULE</span></h3>
+
+  <div class="sect">
+    <div class="lab">现在就要定的内部接口（调用方只认这五个）</div>
+    <div class="chips">
+      <span class="chip hot">propose_from_canvas()</span>
+      <span class="chip hot">confirm(memory_id, revision)</span>
+      <span class="chip hot">select(session, topic, k)</span>
+      <span class="chip hot">delete(memory_id)</span>
+      <span class="chip hot">export(format)</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="lab">预留挂点（先空实现 / 返回 None / 默认关闭）</div>
+    <div class="chips">
+      <span class="chip ghost">embedding_ref</span>
+      <span class="chip ghost">purpose + scope</span>
+      <span class="chip ghost">guardian_consent</span>
+      <span class="chip ghost">import()</span>
+      <span class="chip ghost">merge() / split()</span>
+      <span class="chip ghost">summarize()</span>
+      <span class="chip ghost">events</span>
+      <span class="chip ghost">stats()</span>
+      <span class="chip ghost">persona_version</span>
+      <span class="chip ghost">on_cards_confirmed</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="lab">内部四件事</div>
+    <div class="chips">
+      <span class="chip">提取器 Extractor</span><span class="chip">选择器 Selector</span>
+      <span class="chip">守卫 Guards</span><span class="chip">存储 Store</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="lab">写：一次确认画布的流向</div>
+    <div class="flow">
+      <span>画布确认</span><i>→</i><span>Extractor 提 0–3 条</span><i>→</i>
+      <span>写入裁决<br><em>新增/更新/删除/跳过</em></span><i>→</i>
+      <span>用户逐条勾选</span><i>→</i><span>Store</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="lab">读：一轮对话的流向</div>
+    <div class="flow">
+      <span>Selector</span><i>→</i><span>过滤<br><em>已确认/未过期/未删</em></span><i>→</i>
+      <span>打分<br><em>最近用过+重要度+话题</em></span><i>→</i>
+      <span>≤5 条摘要</span><i>→</i><span>注入块 → 模型</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="lab">删：一次删除的连锁</div>
+    <div class="flow">
+      <span>设置页删除</span><i>→</i><span>清正文留墓碑</span><i>→</i>
+      <span>回写依赖失效</span><i>→</i><span>旧回复不再进上下文</span>
+    </div>
+  </div>
+
+  <div class="store">
+    <i>L2 memories（≤5 注入）</i><i>L1 records（按需调取）</i><br>
+    <span style="display:inline-block;margin-top:6px;">data/memories.sqlite3 · 明文 · 版本号乐观锁</span>
+  </div>
+
+  <div class="note">
+    预留的东西一律：<b>字段先加、接口返回空、开关默认关</b>。<br>
+    这样以后接 embedding、接导入、接监护人同意，调用方都不用改。
+  </div>
+</div>
+
+<!-- ===== 右：契约 ===== -->
+<div class="panel">
+  <div class="card">
+    <h4>对外 HTTP：现在实现 7 个</h4>
+    <table>
+      <tr><th style="width:52px">方法</th><th>路径</th><th style="width:150px">用途</th></tr>
+      <tr><td class="st">GET</td><td><code>/memories</code></td><td>列 L2</td></tr>
+      <tr><td class="st">POST</td><td><code>/memories</code></td><td>手写一条</td></tr>
+      <tr><td class="st">PATCH</td><td><code>/memories/{id}</code></td><td>改（带 revision）</td></tr>
+      <tr><td class="st">POST</td><td><code>/memories/{id}/confirm</code></td><td>确认</td></tr>
+      <tr><td class="st">DELETE</td><td><code>/memories/{id}</code></td><td>删 + 失效</td></tr>
+      <tr><td class="st">POST</td><td><code>/sessions/{id}/memories/propose</code></td><td>从画布提议</td></tr>
+      <tr><td class="st">GET</td><td><code>/memories/export</code></td><td>导出</td></tr>
+      <tr><td class="st">GET</td><td><code>/records</code> · <code>/records/{id}</code></td><td>读 L1（只读）</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h4>预留但先不实现（返回 501 或空）</h4>
+    <table>
+      <tr><th style="width:52px">状态</th><th>接口</th><th style="width:170px">为什么先留</th></tr>
+      <tr><td class="rs">501</td><td><code>POST /memories/import</code></td><td>以后可能从别处导入</td></tr>
+      <tr><td class="rs">501</td><td><code>POST /memories/{id}/merge</code></td><td>条目重复时需要合并</td></tr>
+      <tr><td class="rs">501</td><td><code>POST /memories/{id}/summarize</code></td><td>换模型后可能重算摘要</td></tr>
+      <tr><td class="rs">空</td><td><code>GET /memories/stats</code></td><td>前端统计、评测取样</td></tr>
+      <tr><td class="rs">空</td><td><code>GET /memories/events</code></td><td>以后接审计/回放</td></tr>
+      <tr><td class="no">字段</td><td><code>embedding_ref</code></td><td>以后上向量检索</td></tr>
+      <tr><td class="no">字段</td><td><code>purpose</code> / <code>scope</code></td><td>和穿戴授权对齐</td></tr>
+      <tr><td class="no">字段</td><td><code>guardian_consent</code></td><td>未成年人合规</td></tr>
+      <tr><td class="no">字段</td><td><code>persona_version</code></td><td>换人设时提示旧记忆</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h4>三条契约原则</h4>
+    <table>
+      <tr><td style="width:86px" class="st">窄接口</td><td>调用方只看见 <code>propose / confirm / select</code>，不知道有 SQLite、也不知道 L1/L2 怎么分。</td></tr>
+      <tr><td class="st">只加不删</td><td>schema 加字段不删字段，未知字段一律忽略；版本号用乐观锁。</td></tr>
+      <tr><td class="st">默认关闭</td><td>预留能力全部 feature flag 默认 off，开了才可能被调用。</td></tr>
+    </table>
+  </div>
+</div>
+
+<svg viewBox="0 0 1680 1050" style="position:absolute;inset:0;pointer-events:none;">
+  <defs>
+    <marker id="m1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(190,110,132,.75)" stroke-width="1.3"/>
+    </marker>
+    <marker id="m2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(140,112,80,.65)" stroke-width="1.3"/>
+    </marker>
+  </defs>
+  <path d="M436,136 L512,136" stroke="rgba(190,110,132,.75)" stroke-width="1.5" marker-end="url(#m1)"/>
+  <path d="M436,226 L512,226" stroke="rgba(140,112,80,.45)" stroke-width="1.3" stroke-dasharray="5 5" marker-end="url(#m2)"/>
+  <path d="M436,316 L512,316" stroke="rgba(150,125,95,.35)" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <path d="M436,406 L512,406" stroke="rgba(150,125,95,.35)" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <path d="M436,496 L512,496" stroke="rgba(140,112,80,.65)" stroke-width="1.4" marker-end="url(#m2)"/>
+  <path d="M436,586 L512,586" stroke="rgba(140,112,80,.65)" stroke-width="1.4" marker-end="url(#m2)"/>
+  <path d="M436,676 L512,676" stroke="rgba(140,112,80,.45)" stroke-width="1.3" stroke-dasharray="5 5" marker-end="url(#m2)"/>
+  <path d="M436,766 L512,766" stroke="rgba(150,125,95,.35)" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <path d="M436,856 C480,856 500,830 512,806" stroke="rgba(150,125,95,.35)" stroke-width="1.2" stroke-dasharray="4 4"/>
+</svg>
+<div class="foot">
+  <span><b>档案有四个写入口</b>（画布/存档/便签/补记）；<b>自动提取只挂在画布确认</b></span>
+  <span><b>读入口只有一个</b>：编排层每轮 → select</span>
+  <span><b>删入口只有一个</b>：设置页 → delete → 依赖失效</span>
+  <span style="margin-left:auto; color:#a9586e;">预留字段先加、接口先空、开关先关</span>
+</div>
+
+</body>
+</html>

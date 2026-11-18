@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --paper:#fbf3e2; --cream:#fff8f1; --ink:#3b2f24; --muted:#7a6650; --faint:#a89583;
+    --rose:#c9768c; --gold:#c9a87c;
+  }
+  body{ width:1680px; height:1060px; background:#efe8dd; color:var(--ink);
+    font-family:"Microsoft YaHei","Segoe UI",sans-serif; padding:22px 26px; overflow:hidden; position:relative; }
+  .title{ display:flex; align-items:baseline; gap:14px; }
+  .title b{ font-size:15px; } .title span{ font-size:11.5px; color:#8b8172; }
+
+  .col{ position:absolute; top:86px; border-radius:14px; background:var(--paper);
+    border:1px solid #e6d6c1; box-shadow:0 10px 24px rgba(120,85,60,.10); padding:14px 16px; }
+  .col h3{ font-family:"KaiTi",serif; font-size:14px; font-weight:400; display:flex; align-items:baseline; gap:8px; }
+  .col h3 span{ font-size:8.5px; color:#b0957c; letter-spacing:.08em; }
+  .col .sub{ margin-top:5px; font-size:9px; color:#8b7a66; line-height:1.6; }
+  .row{ margin-top:9px; padding:8px 10px; border-radius:8px; background:rgba(255,255,255,.78);
+    border:1px solid #eadbc8; }
+  .row .k{ display:flex; align-items:center; gap:7px; }
+  .verb{ font-size:8px; font-weight:700; color:#fff; border-radius:4px; padding:1px 5px; letter-spacing:.04em; }
+  .post{ background:#8ba585; } .get{ background:#8fa0b8; } .patchv{ background:#c9a87c; } .del{ background:#c07a7a; }
+  .row code{ font-family:"Consolas",monospace; font-size:9.5px; color:#3b2f24; }
+  .row p{ margin-top:4px; font-size:8.5px; line-height:1.55; color:#7a6650; }
+  .tag{ font-size:7.5px; color:#a9586e; border:1px solid rgba(201,120,140,.45); border-radius:999px; padding:0 5px; margin-left:auto; }
+  .tag.gray{ color:#8b7a66; border-color:rgba(150,125,95,.35); }
+
+  .principle{ position:absolute; border-radius:12px; background:rgba(255,255,255,.72);
+    border:1px solid #e0cfba; padding:9px 12px; }
+  .principle b{ font-size:10px; display:block; }
+  .principle p{ font-size:8.5px; color:#7a6650; margin-top:3px; line-height:1.55; }
+
+  .code{ font-family:"Consolas",monospace; font-size:8.5px; background:#fffdf7; border:1px solid #e8dcc6;
+    border-radius:6px; padding:6px 8px; margin-top:7px; color:#4b3c2c; line-height:1.7; }
+  .code b{ color:#a9586e; font-weight:400; }
+
+  svg{ position:absolute; inset:0; pointer-events:none; }
+  .foot{ position:absolute; left:26px; right:26px; bottom:16px; border-top:1px solid rgba(150,125,95,.25);
+    padding-top:9px; font-size:9px; color:#8b7a66; display:flex; gap:18px; }
+  .foot b{ color:#3b2f24; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <b>画布 · 对外接口</b>
+  <span>内部服务 / HTTP / 事件 / 存储；M1 先做前三个加加密存储，起草接口留 501</span>
+</div>
+
+<svg viewBox="0 0 1680 1060">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(140,112,80,.75)" stroke-width="1.3"/>
+    </marker>
+  </defs>
+  <path d="M438,300 L516,300" stroke="rgba(140,112,80,.7)" stroke-width="1.3" marker-end="url(#a)"/>
+  <path d="M438,600 L516,600" stroke="rgba(140,112,80,.7)" stroke-width="1.3" marker-end="url(#a)"/>
+  <path d="M900,300 L976,300" stroke="rgba(140,112,80,.7)" stroke-width="1.3" marker-end="url(#a)"/>
+  <path d="M900,600 L976,600" stroke="rgba(140,112,80,.7)" stroke-width="1.3" marker-end="url(#a)"/>
+</svg>
+
+<!-- 内部服务 -->
+<div class="col" style="left:26px; width:412px; height:470px;">
+  <h3>内部服务 <span>SERVICE</span></h3>
+  <div class="sub">给编排层、记忆、档案调用的窄接口；不直接摸 SQLite。</div>
+  <div class="code">
+<b>create</b>(session_id, lanes, day=None) → Canvas<br>
+<b>patch</b>(canvas_id, ops, expected_revision) → Canvas<br>
+<b>confirm</b>(canvas_id, expected_revision, request_id) → (Canvas, Record)<br>
+<b>get</b>(canvas_id) → Canvas<br>
+<b>latest_confirmed</b>(session_id | canvas_id) → Canvas | None<br>
+<b>snapshot</b>(record_id) → CanvasSnapshot<br>
+<b>delete_record</b>(record_id) → Record
+  </div>
+  <div class="row"><div class="k"><code>latest_confirmed</code></div><p>给上下文注入用；只返回 confirmed 且未删除的版本。</p></div>
+  <div class="row"><div class="k"><code>snapshot</code></div><p>给档案日视图、卡片、导出用；只读，不暴露内部存储。</p></div>
+</div>
+
+<!-- HTTP 上半 -->
+<div class="col" style="left:516px; width:384px; height:470px;">
+  <h3>HTTP · 画布 <span>CANVAS</span></h3>
+  <div class="sub">延续现有 <code>/sessions/...</code> 风格；改与确认都要带版本。</div>
+  <div class="row"><div class="k"><span class="verb post">POST</span><code>/sessions/{id}/canvases</code></div><p>新建空白画布（允许全空）。</p></div>
+  <div class="row"><div class="k"><span class="verb get">GET</span><code>/sessions/{id}/canvases</code></div><p>该会话相关的画布列表。</p></div>
+  <div class="row"><div class="k"><span class="verb get">GET</span><code>/canvases/{id}</code></div><p>单张画布（含五栏与来源）。</p></div>
+  <div class="row"><div class="k"><span class="verb patchv">PATCH</span><code>/canvases/{id}</code></div><p>逐条增/改/删，带 <code>expected_revision</code>；冲突 409。</p></div>
+  <div class="row"><div class="k"><span class="verb post">POST</span><code>/canvases/{id}/confirm</code></div><p>确认 → 写记录 v+1；幂等键 <code>request_id</code>。</p></div>
+  <div class="row"><div class="k"><span class="verb post">POST</span><code>/canvases/{id}/draft</code><span class="tag">M2 · 501</span></div><p>一键起草：只填空栏、标 inferred、带出处。</p></div>
+</div>
+
+<!-- HTTP 下半 -->
+<div class="col" style="left:516px; width:384px; top:600px; height:400px;">
+  <h3>HTTP · 记录与日视图 <span>RECORDS</span></h3>
+  <div class="sub">档案首页只要预览字段；完整画布点进来再拉。</div>
+  <div class="row"><div class="k"><span class="verb get">GET</span><code>/records?month=2026-11</code></div><p>按天分组，每天给预览列表（主题/概要/卡片数）。</p></div>
+  <div class="row"><div class="k"><span class="verb get">GET</span><code>/days/{day}</code></div><p>那天全部画布预览（一天可多张）。</p></div>
+  <div class="row"><div class="k"><span class="verb get">GET</span><code>/records/{id}</code></div><p>单条记录：完整快照 + 卡片。</p></div>
+  <div class="row"><div class="k"><span class="verb del">DELETE</span><code>/records/{id}</code></div><p>只软删记录，返回受影响的 <code>memory_refs</code>。</p></div>
+</div>
+
+<!-- 事件 -->
+<div class="col" style="left:976px; width:330px; height:330px;">
+  <h3>事件 <span>EVENTS</span></h3>
+  <div class="sub">画布不直接调记忆/档案，只发事件，谁需要谁订。</div>
+  <div class="row"><div class="k"><code>canvas.draft_completed</code></div><p>M2；带填写了哪几栏、丢了几条无出处。</p></div>
+  <div class="row"><div class="k"><code>canvas.confirmed</code></div><p>画布版本 + 记录 id；记忆提议在这里挂。</p></div>
+  <div class="row"><div class="k"><code>record.superseded</code></div><p>旧记录被新版本取代；档案刷新用。</p></div>
+  <div class="row"><div class="k"><code>record.deleted</code></div><p>失效旧回复、清弱引用。</p></div>
+</div>
+
+<!-- 存储 -->
+<div class="col" style="left:976px; width:330px; top:452px; height:548px;">
+  <h3>存储 <span>STORAGE</span></h3>
+  <div class="sub"><code>data/canvases.sqlite3</code> · 内容列 AES-256-GCM</div>
+  <div class="row"><div class="k"><code>canvases</code></div><p>canvas_id / owner / 来源会话 / day / status / revision / <b>lanes_json（加密）</b> / confirmed_revision</p></div>
+  <div class="row"><div class="k"><code>records</code></div><p>record_id / canvas_id / canvas_revision / version / superseded_by / observed_at /<b>snapshot_json（加密）</b></p></div>
+  <div class="code">
+明文列：id、owner、day、status、revision、时间<br>
+密文列：lanes、note、snapshot、cards、summary<br>
+密钥：data/.canvas.key 或 CANVAS_ENC_KEY<br>
+缺密钥 → 拒绝启动（不降级为明文）
+  </div>
+</div>
+
+<!-- 原则 -->
+<div class="principle" style="left:26px; top:592px; width:412px;">
+  <b>窄接口</b><p>上层只拿对象，不摸 SQLite；画布不认识 session / orchestrator / psychology。</p>
+</div>
+<div class="principle" style="left:26px; top:686px; width:412px;">
+  <b>版本先决</b><p>改和确认都带 <code>expected_revision</code>；确认再加 <code>request_id</code> 幂等，防网络重试双写。</p>
+</div>
+<div class="principle" style="left:26px; top:780px; width:412px;">
+  <b>只加不删</b><p>新字段一律可空带默认；已确认版本的语义不改；预留位先 501，不占语义。</p>
+</div>
+<div class="principle" style="left:26px; top:874px; width:412px;">
+  <b>可复现</b><p>起草记 <code>persona_id / draft_profile / prompt_version / model</code>；出问题能回查是哪次生成的。</p>
+</div>
+
+<div class="foot">
+  <span><b>原则</b>：确认才生效 · 版本先行 · 留白合法</span>
+  <span><b>M1</b>：画布 CRUD + 确认 + 日视图 + 加密 + 敏感提示</span>
+  <span><b>M2</b>：/draft 真生成、卡片、记忆提议接线</span>
+  <span style="margin-left:auto; color:#a9586e;">错误码：not_found / revision_conflict / canvas_empty / draft_needs_replace</span>
+</div>
+
+</body>
+</html>

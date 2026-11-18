@@ -1,0 +1,185 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --paper:#fbf3e2; --cream:#fff8f1; --ink:#3b2f24; --muted:#7a6650; --faint:#a89583;
+    --rose:#c9768c; --gold:#c9a87c; --line:rgba(150,125,95,.30);
+  }
+  body{ width:1680px; height:1000px; background:#efe8dd; color:var(--ink);
+    font-family:"Microsoft YaHei","Segoe UI",sans-serif; padding:22px 24px; overflow:hidden; position:relative; }
+  .title{ display:flex; align-items:baseline; gap:14px; }
+  .title b{ font-size:15px; } .title span{ font-size:11.5px; color:#8b8172; }
+  .legend{ position:absolute; right:26px; top:22px; display:flex; gap:12px; font-size:10px; color:#8b7a66; }
+  .legend i{ display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:-2px; }
+
+  .box{ position:absolute; border-radius:12px; padding:11px 13px; background:var(--paper);
+    border:1px solid #e6d6c1; box-shadow:0 8px 20px rgba(120,85,60,.10); }
+  .box h4{ font-size:12.5px; font-family:"KaiTi",serif; font-weight:400; }
+  .box p{ margin-top:5px; font-size:9.5px; line-height:1.6; color:#6b5a46; }
+  .box small{ display:block; margin-top:5px; font-size:8.5px; color:#a89583; }
+  .new{ border:1.4px dashed rgba(201,120,140,.65); background:rgba(255,248,241,.92); }
+  .off{ border:1.4px dashed rgba(150,125,95,.35); background:rgba(255,255,255,.45); color:#a89583; }
+  .off h4{ color:#a89583; }
+
+  .hub{ position:absolute; left:606px; top:330px; width:470px; height:296px; border-radius:16px;
+    background:radial-gradient(90% 70% at 50% 0%, #fff8ef, #fbf3e2 70%);
+    border:1.6px solid rgba(201,120,140,.55); box-shadow:0 16px 36px rgba(120,85,60,.16); padding:14px 16px; }
+  .hub .hd{ display:flex; align-items:baseline; gap:8px; }
+  .hub .hd b{ font-family:"KaiTi",serif; font-size:17px; font-weight:400; }
+  .hub .hd span{ font-size:8.5px; color:#b0957c; letter-spacing:.08em; }
+  .parts{ margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .part{ background:rgba(255,255,255,.75); border:1px solid #eadbc8; border-radius:8px; padding:7px 9px; }
+  .part b{ font-size:10.5px; display:block; }
+  .part span{ font-size:8.5px; color:#8b7a66; line-height:1.55; display:block; margin-top:3px; }
+  .store{ margin-top:8px; border-top:1px dashed rgba(150,125,95,.3); padding-top:7px; display:flex; gap:8px; font-size:8.5px; color:#6b5a46; flex-wrap:wrap; }
+  .store i{ font-style:normal; background:#fff; border:1px solid #e6d6c1; border-radius:999px; padding:2px 8px; }
+
+  .alab{ position:absolute; font-size:9px; color:#7a6650; background:rgba(255,253,246,.92);
+    border:1px solid rgba(150,125,95,.25); border-radius:999px; padding:2px 8px; white-space:nowrap; }
+  svg{ position:absolute; inset:0; pointer-events:none; }
+
+  .foot{ position:absolute; left:24px; right:24px; bottom:16px; border-top:1px solid rgba(150,125,95,.25);
+    padding-top:10px; font-size:9.5px; color:#8b7a66; display:flex; gap:16px; }
+  .foot b{ color:#3b2f24; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <b>画布 · 与项目全景的联动</b>
+  <span>中间是画布模块，四周是它打交道的地方；实线=已存在，虚线=这轮要建</span>
+</div>
+<div class="legend">
+  <span><i style="background:#fbf3e2;border:1px solid #e6d6c1"></i>已存在</span>
+  <span><i style="background:#fff8f1;border:1.4px dashed rgba(201,120,140,.65)"></i>待建</span>
+  <span><i style="background:rgba(255,255,255,.5);border:1.4px dashed rgba(150,125,95,.35)"></i>明确不连</span>
+</div>
+
+<svg viewBox="0 0 1680 1000">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(140,112,80,.75)" stroke-width="1.3"/>
+    </marker>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6" fill="none" stroke="rgba(190,110,132,.8)" stroke-width="1.3"/>
+    </marker>
+  </defs>
+
+  <!-- 编排 → 画布：邀请起草 -->
+  <path d="M366,196 C470,236 540,300 604,368" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+  <!-- 起草 → 画布 -->
+  <path d="M760,168 L796,330" fill="none" stroke="rgba(190,110,132,.75)" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+  <!-- 画布 → 档案 -->
+  <path d="M1078,392 C1130,350 1150,290 1176,240" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+  <!-- 画布 → 卡片 -->
+  <path d="M1078,520 C1150,520 1220,506 1326,492" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" stroke-dasharray="6 5" marker-end="url(#ar)"/>
+  <!-- 画布 → 记忆 -->
+  <path d="M604,588 C520,620 460,650 402,676" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+  <!-- 画布 → 上下文 -->
+  <path d="M800,626 L800,790" fill="none" stroke="rgba(190,110,132,.7)" stroke-width="1.4" marker-end="url(#arr)"/>
+  <!-- 画布 → 版本裁决 -->
+  <path d="M1078,560 C1140,620 1150,670 1168,700" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+  <!-- 敏感检测 → 画布 -->
+  <path d="M366,442 C440,430 540,420 604,430" fill="none" stroke="rgba(140,112,80,.7)" stroke-width="1.4" marker-end="url(#ar)"/>
+  <!-- 设备原始数据：不连 -->
+  <path d="M268,516 L300,516" fill="none" stroke="rgba(150,125,95,.35)" stroke-width="1.4" stroke-dasharray="5 5"/>
+</svg>
+
+<!-- 编排 -->
+<div class="box" style="left:112px; top:112px; width:254px;">
+  <h4>拾光对话 · 编排层</h4>
+  <p><code>orchestrator</code>：邀请起草、注入已确认版本、把"本轮用了哪一版"写进依赖。</p>
+  <small>已存在 · 每轮必经</small>
+</div>
+
+<!-- 一键起草 -->
+<div class="box new" style="left:600px; top:52px; width:302px;">
+  <h4>一键起草（M2）</h4>
+  <p>从本会话对话生成候选条目；按 <code>persona_id + draft_profile</code> 决定语气；每条必须带出处，无出处丢弃。</p>
+  <small>待建 · M1 先返回 501</small>
+</div>
+
+<!-- 档案 -->
+<div class="box new" style="left:1146px; top:96px; width:280px;">
+  <h4>成长档案 · 时间轴 + 日视图</h4>
+  <p>按月只画保存过的天；点开一天先出<strong>多张画布预览</strong>（主题/概要），点进某张才看完整画布。</p>
+  <small>待建：日视图 + 多张预览</small>
+</div>
+
+<!-- 卡片 -->
+<div class="box new" style="left:1330px; top:418px; width:238px;">
+  <h4>K / R / N 卡片</h4>
+  <p>记住"从哪张画布的第几版、哪一格来的"；画布改版后标「基于第 N 版」+ 给重建。</p>
+  <small>待建 · M2</small>
+</div>
+
+<!-- 版本裁决 -->
+<div class="box new" style="left:1120px; top:700px; width:300px;">
+  <h4>记录版本裁决</h4>
+  <p>再确认 → 记录 <strong>v+1</strong>，旧的标 <code>superseded</code>；档案默认显示最新，历史可回看。</p>
+  <small>待建 · 与确认同一事务</small>
+</div>
+
+<!-- 敏感检测 -->
+<div class="box" style="left:112px; top:404px; width:254px;">
+  <h4>敏感内容检测</h4>
+  <p>起草与确认各扫一次；命中只出<strong>非阻断提示</strong>，不进记忆、不自动生成卡片。</p>
+  <small>已有安全路线可复用 · 加关键词层</small>
+</div>
+
+<!-- 长期记忆 -->
+<div class="box" style="left:112px; top:680px; width:262px;">
+  <h4>长期记忆 L2</h4>
+  <p>只从<strong>确认画布</strong>里提炼：user 条目 + 被确认的 guessed 条目；删除记录不连带删记忆。</p>
+  <small>已存在 · 记忆模块 v0.5</small>
+</div>
+
+<!-- 设备原始数据不连 -->
+<div class="box off" style="left:52px; top:490px; width:206px;">
+  <h4>设备原始数据</h4>
+  <p>穿戴数据只作为"那天还有"的摘要显示，<strong>不写进画布内容</strong>。</p>
+  <small>✕ 不连</small>
+</div>
+
+<!-- 上下文 -->
+<div class="box" style="left:600px; top:792px; width:330px;">
+  <h4>上下文 → 模型</h4>
+  <p>只注入<strong>已确认</strong>的那一版（含修订），以 <code>source.kind="canvas"</code> 记录来源。</p>
+  <small>已存在构建位置 · 加画布块</small>
+</div>
+
+<!-- 中心 -->
+<div class="hub">
+  <div class="hd"><b>画布模块</b><span>五栏 · 版本 · 确认 · 记录</span></div>
+  <div class="parts">
+    <div class="part"><b>五栏内容</b><span>事实 / 理解 / 感受 / 在意 / 还不知道；留白是一等公民</span></div>
+    <div class="part"><b>来源标记</b><span>user 原话 / inferred 猜测；猜测没出处不填</span></div>
+    <div class="part"><b>确认与版本</b><span>确认即冻结；改 → revision+1，需重新收下</span></div>
+    <div class="part"><b>记录快照</b><span>确认写 L1 快照；再确认生成新版本，旧记录 supersede</span></div>
+  </div>
+  <div class="store">
+    <i>canvases（草稿/确认）</i><i>records（只读快照）</i><i>内容列 AES-256-GCM</i><i>data/canvases.sqlite3</i>
+  </div>
+</div>
+
+<div class="alab" style="left:386px; top:258px;">邀请起草 / 每轮注入确认版</div>
+<div class="alab" style="left:700px; top:246px; color:#a9586e;">候选：inferred + 出处</div>
+<div class="alab" style="left:1118px; top:284px;">日视图 / 多张预览</div>
+<div class="alab" style="left:1188px; top:520px;">绑定 record + revision</div>
+<div class="alab" style="left:1192px; top:664px;">再确认 → v+1</div>
+<div class="alab" style="left:430px; top:632px;">只从确认画布提炼</div>
+<div class="alab" style="left:430px; top:414px;">命中 → 只提示</div>
+<div class="alab" style="left:812px; top:702px;">确认版进上下文</div>
+
+<div class="foot">
+  <span><b>写</b>：用户自己写，或一键起草后改</span>
+  <span><b>存</b>：确认才写记录；再改 → 新版本，旧的不删</span>
+  <span><b>读</b>：档案日视图、卡片、记忆、上下文都引用 <code>canvas_id + revision</code></span>
+  <span style="margin-left:auto; color:#a9586e;">红线：不点头不生效 · 猜的要标 · 删了要失效</span>
+</div>
+
+</body>
+</html>
