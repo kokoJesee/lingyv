@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowDown, ArrowUpRight, ChevronDown, Fingerprint, Heart, Layers3, ScanLine, Sparkles, Wind, Footprints } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Fingerprint, Heart, Layers3, RotateCcw, ScanLine } from "lucide-react";
 import { motion, useInView } from "motion/react";
-import { useRef, useState } from "react";
-import { hypothesisKeys, hypothesisLabels, supportChoices, type ExperienceCard, type HypothesisKey, type Reflection, type SupportChoice } from "../lib/agent";
+import { useRef, useState, type CSSProperties } from "react";
+import { hypothesisKeys, hypothesisLabels, reflectionStatusLabels, supportChoices, type ExperienceCard, type HypothesisKey, type Reflection, type SupportChoice } from "../lib/agent";
 import { WorldMedia } from "./world-media";
 import { CinematicArchiveControls } from "./cinematic-archive-controls";
+import { ExperienceConstellation } from "./experience-constellation";
+import { exampleExperienceCards } from "./experience-examples";
 import type { JourneyController } from "./use-support-journey";
 import "./cinematic-reflections.css";
 
@@ -13,16 +15,14 @@ const canvasVideo = "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttw
 const archiveVideo = "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260330_145725_08886141-ed95-4a8e-8d6d-b75eaadce638.mp4";
 
 const canvasLayers = {
-  facts: { index: "01", icon: ScanLine, hint: "先看看发生了什么。试着把你看见、听见的，和当时的猜测分开。" },
-  interpretation: { index: "02", icon: Layers3, hint: "你当时是怎么理解这件事的？同一件事也可能有别的读法。" },
-  emotion: { index: "03", icon: Heart, hint: "哪些词贴近你的感受？你也可以同时有几种感受。" },
-  needs: { index: "04", icon: Fingerprint, hint: "此刻你希望得到什么？如果还说不清，这一层可以留白。" },
-} satisfies Record<HypothesisKey, { index: string; icon: typeof Heart; hint: string }>;
+  facts: { x: 12, y: 53, color: "#b7e8ff", icon: ScanLine, hint: "先看看发生了什么。试着把你看见、听见的，和当时的猜测分开。" },
+  interpretation: { x: 37, y: 31, color: "#cdc2ff", icon: Layers3, hint: "你当时是怎么理解这件事的？同一件事也可能有别的读法。" },
+  emotion: { x: 63, y: 54, color: "#ffbbe1", icon: Heart, hint: "哪些词贴近你的感受？你也可以同时有几种感受。" },
+  needs: { x: 88, y: 30, color: "#ffe1a9", icon: Fingerprint, hint: "此刻你希望得到什么？如果还说不清，这一层可以留白。" },
+} satisfies Record<HypothesisKey, { x: number; y: number; color: string; icon: typeof Heart; hint: string }>;
 
-const reflectionStatus = { proposed: "待你确认的理解草稿", confirmed: "由你确认的理解", corrected: "由你修正的理解" };
 const archiveChoices = ["keep", "release", "next"] as const;
-const archiveIcons = { keep: Heart, release: Wind, next: Footprints };
-const archiveDate = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+const canvasStepMs = 1550;
 
 function BlurTitle({ lines, id, language, lineDelay = .42 }: {
   lines: readonly (readonly string[])[]; id: string; language?: string; lineDelay?: number;
@@ -48,6 +48,7 @@ function BlurTitle({ lines, id, language, lineDelay = .42 }: {
 
 export function CinematicCanvas({ draft, onOpenAgent }: { draft: Reflection | null; onOpenAgent: () => void }) {
   const [active, setActive] = useState<HypothesisKey>("facts");
+  const [playback, setPlayback] = useState(0);
   const layer = canvasLayers[active];
   const Icon = layer.icon;
 
@@ -60,20 +61,35 @@ export function CinematicCanvas({ draft, onOpenAgent }: { draft: Reflection | nu
           <p className="cr-badge cr-canvas-badge cr-enter"><Layers3 size={14} /> 心象画布 <span>MIND CANVAS</span></p>
           <BlurTitle lines={[["给感受", "一个形状。"]]} id="cr-canvas-title" />
           <p className="cr-description cr-enter cr-delay-copy">把一段经历分开来看。事实、解释、情绪与需要，可以由你重新命名。</p>
-          <div className="cr-canvas-workspace cr-enter cr-delay-actions">
-            <div className="cr-glass cr-layer-control" role="group" aria-label="选择心象画布的理解层">
-              {hypothesisKeys.map((key) => {
-                const LayerIcon = canvasLayers[key].icon;
-                return <button type="button" key={key} aria-pressed={key === active} aria-controls="cr-layer-details" onClick={() => setActive(key)}><LayerIcon size={15} />{hypothesisLabels[key]}</button>;
-              })}
+          <div className="cr-canvas-workspace">
+            <div className="cr-starfield cr-canvas-constellation">
+              <div key={playback} role="group" aria-label="选择心象画布的理解层">
+                <svg className="cr-star-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  {hypothesisKeys.slice(1).map((key, index) => {
+                    const from = canvasLayers[hypothesisKeys[index]];
+                    const to = canvasLayers[key];
+                    return <path key={key} className="cr-canvas-link" d={`M ${from.x} ${from.y} L ${to.x} ${to.y}`} vectorEffect="non-scaling-stroke"
+                      style={{ "--cr-link-delay": `${825 + index * canvasStepMs}ms`, stroke: to.color } as CSSProperties} />;
+                  })}
+                </svg>
+                {hypothesisKeys.map((key, index) => (
+                  <button type="button" key={key} className="cr-star-node cr-canvas-star" aria-pressed={key === active} aria-controls="cr-layer-details" onClick={() => setActive(key)}
+                    style={{ left: `${canvasLayers[key].x}%`, top: `${canvasLayers[key].y}%`, "--cr-starlight": canvasLayers[key].color, "--cr-star-delay": `${450 + index * canvasStepMs}ms` } as CSSProperties}>
+                    <span className="cr-star-mark" aria-hidden="true" />
+                    <span className="cr-star-label">{hypothesisLabels[key]}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="cr-canvas-replay" onClick={() => setPlayback((previous) => previous + 1)}>
+                <RotateCcw size={13} aria-hidden="true" />重播星轨
+              </button>
             </div>
             <article id="cr-layer-details" className="cr-layer-details" aria-live="polite">
               <div key={active} className="cr-layer-body">
                 <span className="cr-layer-icon" aria-hidden="true"><Icon size={18} /></span>
                 <div>
                   <div className="cr-layer-meta">
-                    <span>{layer.index} / 04</span>
-                    <span>{draft ? reflectionStatus[draft.status] : "画布指引"}</span>
+                    <span>{draft ? reflectionStatusLabels[draft.status] : "画布指引"}</span>
                     {draft?.hypothesisSource === "demo" && <span>· 演示来源</span>}
                     {draft?.hypothesisSource === "fastapi" && <span>· 你的记录</span>}
                   </div>
@@ -94,7 +110,9 @@ export function CinematicCanvas({ draft, onOpenAgent }: { draft: Reflection | nu
 export function CinematicArchive({ cards, onOpenAgent, journey }: { cards: readonly ExperienceCard[]; onOpenAgent: () => void; journey?: JourneyController }) {
   const [filter, setFilter] = useState<"all" | SupportChoice>("all");
   const cardHeading = useRef<HTMLHeadingElement>(null);
-  const visibleCards = [...cards].filter((card) => filter === "all" || filter === card.choice)
+  const showingExamples = cards.length === 0;
+  const allCards = showingExamples ? exampleExperienceCards : cards;
+  const visibleCards = allCards.filter((card) => filter === "all" || filter === card.choice)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   function showCards(choice: "all" | SupportChoice = "all") {
@@ -110,7 +128,7 @@ export function CinematicArchive({ cards, onOpenAgent, journey }: { cards: reado
         <WorldMedia src={archiveVideo} poster="/images/archive-bg.jpg" position="right" />
         <div className="cr-archive-wash" aria-hidden="true" />
         <div className="cr-archive-content">
-          <p className="cr-badge cr-glass cr-enter"><span className="cr-badge-chip">{cards.length} 张</span> 成长档案 <span lang="en">GROWTH ARCHIVE</span></p>
+          <p className="cr-badge cr-glass cr-enter"><span className="cr-badge-chip">{showingExamples ? "示例" : `${cards.length} 张`}</span> 成长档案 <span lang="en">GROWTH ARCHIVE</span></p>
           <BlurTitle lines={[["What", "You", "Keep"], ["Becomes", "Light."]]} id="cr-archive-title" language="en" />
           <p className="cr-description cr-enter cr-delay-copy">把想带走的理解存成一张经历卡。再回头时，你可以看见当时如何照顾自己、为自己选了哪一步。</p>
           <div className="cr-archive-actions cr-enter cr-delay-actions">
@@ -137,35 +155,12 @@ export function CinematicArchive({ cards, onOpenAgent, journey }: { cards: reado
             ))}
           </div>
         </header>
-        <p className="cr-feed-note" aria-live="polite">{visibleCards.length} 张经历卡 · 仅在当前页面暂存，刷新后清空。{journey ? "本机旅程存档需在下方单独保存。" : ""}</p>
-        {visibleCards.length ? (
-          <div className="cr-archive-cards" key={filter}>
-            {visibleCards.map((card) => {
-              const CardIcon = archiveIcons[card.choice];
-              return (
-                <details key={card.id} className="cr-glass cr-experience">
-                  <summary>
-                    <span className="cr-card-icon"><CardIcon size={19} /></span>
-                    <span className="cr-card-title"><strong>{card.title}</strong><small>{archiveDate.format(new Date(card.createdAt))} · {supportChoices[card.choice].label} · {reflectionStatus[card.reflectionStatus]}</small></span>
-                    <ChevronDown size={19} className="cr-card-chevron" />
-                  </summary>
-                  <div className="cr-card-details">
-                    <span className="cr-card-provenance">{card.source === "fastapi" ? "对话记录 · 用户确认。" : "演示来源。"}这张经历卡保留了你确认或修正的内容，以及当时的支持选择。</span>
-                    <p>{card.action}</p>
-                    <dl>{hypothesisKeys.map((key) => <div key={key}><dt>{hypothesisLabels[key]}</dt><dd>{card.hypotheses[key] || "留白"}</dd></div>)}</dl>
-                  </div>
-                </details>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="cr-glass cr-empty-cards">
-            <Sparkles size={25} />
-            <h3>{cards.length ? "这个筛选下暂时没有卡片" : "第一束光，等你留下"}</h3>
-            <p>{cards.length ? "可以查看其他卡片，或回到对话留下一张新的经历卡。" : "和拾光说说近况，确认你自己的理解，选择留下、放下或向前，再保存这段经历。"}</p>
-            <button type="button" className="cr-button cr-glass" onClick={cards.length ? () => setFilter("all") : onOpenAgent}>{cards.length ? "查看全部" : "前往拾光对话"}<ArrowUpRight size={16} /></button>
-          </div>
-        )}
+        <p className="cr-feed-note" aria-live="polite">
+          {showingExamples
+            ? `${visibleCards.length} 张虚构示例卡 · 保存你自己的经历后，这里会显示你的记录。`
+            : `${visibleCards.length} 张经历卡 · 仅在当前页面暂存，刷新后清空。${journey ? "本机旅程存档需在下方单独保存。" : ""}`}
+        </p>
+        <ExperienceConstellation cards={visibleCards} filter={filter} onFilterChange={setFilter} showingExamples={showingExamples} />
         {journey && <CinematicArchiveControls journey={journey} />}
       </div>
     </section>

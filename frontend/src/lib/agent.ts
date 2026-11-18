@@ -35,6 +35,12 @@ export type Reflection = {
   createdAt: string;
 };
 
+export const reflectionStatusLabels: Record<Reflection["status"], string> = {
+  proposed: "待你确认的理解草稿",
+  confirmed: "由你确认的理解",
+  corrected: "由你修正的理解",
+};
+
 export type SupportOutcome = {
   choice: SupportChoice;
   reflectionId: string;
